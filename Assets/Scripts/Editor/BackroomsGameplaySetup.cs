@@ -35,6 +35,7 @@ namespace HorrorEscape.Editor
         private const string TAPE_PREFAB = "Assets/Survival Tools/Prefabs/tape.prefab";
         private const string FIRSTAID_PREFAB = "Assets/Survival Tools/Prefabs/firstaid.prefab";
         private const string WATER_PREFAB = "Assets/Survival Tools/Prefabs/waterbottle.prefab";
+        private const string PILLS_PREFAB = "Assets/Survival Tools/Prefabs/pills.prefab";
 
         [InitializeOnLoadMethod]
         private static void AutoRunOnCompile()
@@ -74,8 +75,16 @@ namespace HorrorEscape.Editor
 
             var scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
 
-            // 1. Ensure Backrooms Level Materials
+            // 1. Ensure Backrooms Level Materials & Atmosphere
             EnsureMaterials(out Material wallMat, out Material floorMat, out Material ceilingMat, out Material trimMat, out Material darkMat);
+
+            // Backrooms Sickly Mono-Yellow Atmosphere & Creepy Fog
+            RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
+            RenderSettings.ambientLight = new Color(0.82f, 0.79f, 0.52f); // Sickly mono-yellow tint
+            RenderSettings.fog = true;
+            RenderSettings.fogMode = FogMode.ExponentialSquared;
+            RenderSettings.fogColor = new Color(0.72f, 0.68f, 0.42f); // Damp yellow-green haze
+            RenderSettings.fogDensity = 0.022f;
 
             // 2. Setup or Retrieve BackroomsLevelGenerator
             BackroomsLevelGenerator generator = UnityEngine.Object.FindFirstObjectByType<BackroomsLevelGenerator>();
@@ -414,9 +423,12 @@ namespace HorrorEscape.Editor
             CreateAmmoPickup(propsRoot, CellWorldPos(midRoom1.Center, cs, 0.35f) + new Vector3(0f, 0f, 1.2f));    // Ammo 2
             CreateAmmoPickup(propsRoot, CellWorldPos(maintenanceRoom.Center, cs, 0.35f) + new Vector3(-1.4f, 0f, 0f)); // Ammo 3
 
-            // Optional Almond Water & First Aid Pickups
+            // Survival Supplies: Almond Water, First Aid, and Calming Sanity Pills
             CreateAlmondWater(propsRoot, CellWorldPos(earlyRoom.Center, cs, 0.35f) + new Vector3(0f, 0f, -1.2f));
+            CreateAlmondWater(propsRoot, CellWorldPos(farRoom.Center, cs, 0.35f) + new Vector3(1.2f, 0f, 0f));
             CreateFirstAid(propsRoot, CellWorldPos(maintenanceRoom.Center, cs, 0.35f) + new Vector3(0f, 0f, 1.4f));
+            CreateSanityPills(propsRoot, CellWorldPos(keycardRoom.Center, cs, 0.35f) + new Vector3(0f, 0f, -1.2f));
+            CreateSanityPills(propsRoot, CellWorldPos(midRoom1.Center, cs, 0.35f) + new Vector3(1.2f, 0f, -1.2f));
 
             // Place Discoverable 9mm Army Pistol in Maze Exploration Room (Player does NOT start with weapon)
             CreatePistolPickup(propsRoot, CellWorldPos(midRoom1.Center, cs, 0.35f) + new Vector3(-1.0f, 0f, -1.0f));
@@ -601,6 +613,34 @@ namespace HorrorEscape.Editor
                 model.transform.localPosition = Vector3.zero;
                 model.transform.localRotation = Quaternion.Euler(0f, -25f, 0f);
                 model.transform.localScale = Vector3.one * 0.8f;
+                var anim = model.GetComponent<Animator>();
+                if (anim != null) UnityEngine.Object.DestroyImmediate(anim);
+                var col = model.GetComponent<Collider>();
+                if (col != null) UnityEngine.Object.DestroyImmediate(col);
+            }
+        }
+
+        private static void CreateSanityPills(GameObject parent, Vector3 pos)
+        {
+            GameObject root = new GameObject("Pickup_SanityPills");
+            root.transform.SetParent(parent.transform, false);
+            root.transform.position = pos;
+
+            BoxCollider box = root.AddComponent<BoxCollider>();
+            box.isTrigger = true;
+            box.center = new Vector3(0f, 0.12f, 0f);
+            box.size = new Vector3(0.5f, 0.4f, 0.5f);
+
+            root.AddComponent<SanityPillsPickup>();
+
+            GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(PILLS_PREFAB);
+            if (prefab != null)
+            {
+                GameObject model = (GameObject)PrefabUtility.InstantiatePrefab(prefab, root.transform);
+                model.name = "Model_SanityPills";
+                model.transform.localPosition = Vector3.zero;
+                model.transform.localRotation = Quaternion.Euler(0f, 35f, 0f);
+                model.transform.localScale = Vector3.one * 0.85f;
                 var anim = model.GetComponent<Animator>();
                 if (anim != null) UnityEngine.Object.DestroyImmediate(anim);
                 var col = model.GetComponent<Collider>();

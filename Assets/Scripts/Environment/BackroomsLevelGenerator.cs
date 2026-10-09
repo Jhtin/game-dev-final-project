@@ -124,10 +124,12 @@ namespace HorrorEscape.Environment
         [SerializeField] private float lightSpacing = 8.0f; // LIGHT_SPACING
 
         [Header("Visual Materials (Authentic Backrooms)")]
-        [SerializeField] private Material wallMaterial;     // M_Wall.mat
-        [SerializeField] private Material floorMaterial;    // M_Floor.mat
-        [SerializeField] private Material ceilingMaterial;  // M_Ceiling.mat
-        [SerializeField] private Material trimMaterial;     // M_Trim.mat
+        [SerializeField] private Material wallMaterial;         // M_Wall.mat
+        [SerializeField] private Material wallMaterialVariantB;  // M_Wall_VariantB.mat
+        [SerializeField] private Material floorMaterial;        // M_Floor.mat
+        [SerializeField] private Material floorMaterialVariantB; // M_Floor_VariantB.mat
+        [SerializeField] private Material ceilingMaterial;      // M_Ceiling.mat
+        [SerializeField] private Material trimMaterial;         // M_Trim.mat
 
         // Generated State
         private CellType[,] grid;
@@ -154,8 +156,12 @@ namespace HorrorEscape.Environment
 #if UNITY_EDITOR
             if (wallMaterial == null)
                 wallMaterial = AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/M_Wall.mat");
+            if (wallMaterialVariantB == null)
+                wallMaterialVariantB = AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/M_Wall_VariantB.mat");
             if (floorMaterial == null)
                 floorMaterial = AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/M_Floor.mat");
+            if (floorMaterialVariantB == null)
+                floorMaterialVariantB = AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/M_Floor_VariantB.mat");
             if (ceilingMaterial == null)
                 ceilingMaterial = AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/M_Ceiling.mat");
             if (trimMaterial == null)
@@ -741,12 +747,19 @@ namespace HorrorEscape.Environment
                     {
                         Vector3 cellCenter = new Vector3(x * cellSize + cellSize * 0.5f, 0f, z * cellSize + cellSize * 0.5f);
 
+                        // Determine wall material: Use Variant B (~20% chance based on pseudo-random hash) for worn/stained variation
+                        Material wallMatToUse = wallMaterial;
+                        if (wallMaterialVariantB != null && ((x * 13 + z * 37) % 7 == 0))
+                        {
+                            wallMatToUse = wallMaterialVariantB;
+                        }
+
                         // North Edge (z + 1)
                         if (!IsWalkable(x, z + 1))
                         {
                             Vector3 wallPos = new Vector3(cellCenter.x, wallHeight * 0.5f, (z + 1) * cellSize - wallThickness * 0.5f);
                             Vector3 wallScale = new Vector3(cellSize, wallHeight, wallThickness);
-                            CreateWallSegment(wallsRoot, wallPos, wallScale, Vector3.back);
+                            CreateWallSegment(wallsRoot, wallPos, wallScale, Vector3.back, wallMatToUse);
                         }
 
                         // South Edge (z - 1)
@@ -754,7 +767,7 @@ namespace HorrorEscape.Environment
                         {
                             Vector3 wallPos = new Vector3(cellCenter.x, wallHeight * 0.5f, z * cellSize + wallThickness * 0.5f);
                             Vector3 wallScale = new Vector3(cellSize, wallHeight, wallThickness);
-                            CreateWallSegment(wallsRoot, wallPos, wallScale, Vector3.forward);
+                            CreateWallSegment(wallsRoot, wallPos, wallScale, Vector3.forward, wallMatToUse);
                         }
 
                         // East Edge (x + 1)
@@ -762,7 +775,7 @@ namespace HorrorEscape.Environment
                         {
                             Vector3 wallPos = new Vector3((x + 1) * cellSize - wallThickness * 0.5f, wallHeight * 0.5f, cellCenter.z);
                             Vector3 wallScale = new Vector3(wallThickness, wallHeight, cellSize);
-                            CreateWallSegment(wallsRoot, wallPos, wallScale, Vector3.left);
+                            CreateWallSegment(wallsRoot, wallPos, wallScale, Vector3.left, wallMatToUse);
                         }
 
                         // West Edge (x - 1)
@@ -770,7 +783,7 @@ namespace HorrorEscape.Environment
                         {
                             Vector3 wallPos = new Vector3(x * cellSize + wallThickness * 0.5f, wallHeight * 0.5f, cellCenter.z);
                             Vector3 wallScale = new Vector3(wallThickness, wallHeight, cellSize);
-                            CreateWallSegment(wallsRoot, wallPos, wallScale, Vector3.right);
+                            CreateWallSegment(wallsRoot, wallPos, wallScale, Vector3.right, wallMatToUse);
                         }
                     }
                     else if (grid[x, z] == CellType.Pillar)
@@ -782,6 +795,36 @@ namespace HorrorEscape.Environment
                 }
             }
 
+            // Floor Material Variation: Create subtle darker/damp carpet patches in selected rooms (e.g. rooms with even index)
+            if (floorMaterialVariantB != null && rooms != null)
+            {
+                for (int r = 0; r < rooms.Count; r++)
+                {
+                    if (r % 2 == 1) // Apply damp/worn carpet to alternating rooms
+                    {
+                        var room = rooms[r];
+                        GameObject floorPatch = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                        floorPatch.name = $"Floor_Patch_Room_{r}";
+                        floorPatch.transform.SetParent(floorRoot.transform, false);
+                        Vector3 roomCenter = new Vector3((room.x + room.width * 0.5f) * cellSize, 0.005f, (room.z + room.length * 0.5f) * cellSize);
+                        floorPatch.transform.position = roomCenter;
+                        floorPatch.transform.localScale = new Vector3(room.width * cellSize, 0.01f, room.length * cellSize);
+                        floorPatch.GetComponent<MeshRenderer>().sharedMaterial = floorMaterialVariantB;
+                        // Remove collider from visual overlay patch so main slab handles collision
+                        Collider patchCol = floorPatch.GetComponent<Collider>();
+                        if (patchCol != null)
+                        {
+#if UNITY_EDITOR
+                            if (!Application.isPlaying) DestroyImmediate(patchCol);
+                            else Destroy(patchCol);
+#else
+                            Destroy(patchCol);
+#endif
+                        }
+                    }
+                }
+            }
+
             // 4. Fluorescent Ceiling Lights
             PlaceFluorescentLights(lightsRoot);
 
@@ -789,14 +832,15 @@ namespace HorrorEscape.Environment
             CreateExitArea(root);
         }
 
-        private void CreateWallSegment(GameObject parent, Vector3 pos, Vector3 scale, Vector3 inwardNormal)
+        private void CreateWallSegment(GameObject parent, Vector3 pos, Vector3 scale, Vector3 inwardNormal, Material matOverride = null)
         {
             GameObject wall = GameObject.CreatePrimitive(PrimitiveType.Cube);
             wall.name = "Wall_Segment";
             wall.transform.SetParent(parent.transform, false);
             wall.transform.position = pos;
             wall.transform.localScale = scale;
-            if (wallMaterial != null) wall.GetComponent<MeshRenderer>().sharedMaterial = wallMaterial;
+            Material appliedMat = matOverride != null ? matOverride : wallMaterial;
+            if (appliedMat != null) wall.GetComponent<MeshRenderer>().sharedMaterial = appliedMat;
 
             // Add bottom baseboard trim facing inward into walkable corridor
             if (trimMaterial != null)

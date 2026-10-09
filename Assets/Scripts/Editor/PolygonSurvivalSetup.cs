@@ -37,6 +37,12 @@ namespace HorrorEscape.Editor
         private const string BarrelPrefabPath = RootDir + "/SM_Barrel_Closed_01_A.prefab";
         private const string CanisterPrefabPath = RootDir + "/SM_Canister_01.prefab";
         private const string AxePrefabPath = RootDir + "/SM_Camping_Axe.prefab";
+        private const string ScrapMetalPrefabPath = RootDir + "/SM_Scrap_Metal_01.prefab";
+        private const string SledgehammerPrefabPath = RootDir + "/SM_Sledgehammer.prefab";
+        private const string DoorPrefabPath = "Assets/LoafbrrAssets/BackroomsLikeAssetRe/prefab/DoorWindow/Door_A_Grp.prefab";
+        private const string WindowPrefabPath = "Assets/LoafbrrAssets/BackroomsLikeAssetRe/prefab/DoorWindow/Wndw_A_Grp.prefab";
+        private const string DebrisFloorPrefabPath = "Assets/LoafbrrAssets/BackroomsLikeAssetRe/prefab/Floor/BR_Floor_2x2_Debris.prefab";
+        private const string CrackedFloorPrefabPath = "Assets/LoafbrrAssets/BackroomsLikeAssetRe/prefab/Floor/BR_Floor_1x1_Crckd.prefab";
 
         [InitializeOnLoadMethod]
         private static void AutoSetupOnLoad()
@@ -465,6 +471,15 @@ namespace HorrorEscape.Editor
                     f.transform.rotation = Quaternion.Euler(0f, 15f, 0f);
                     f.transform.localScale = Vector3.one * 1.5f;
                 }
+
+                // Add modular office window or door against perimeter wall
+                GameObject windowPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(WindowPrefabPath);
+                if (windowPrefab != null)
+                {
+                    GameObject w = (GameObject)PrefabUtility.InstantiatePrefab(windowPrefab, decorRoot.transform);
+                    w.transform.position = keyPos + new Vector3(-2.8f, 0f, 0f);
+                    w.transform.rotation = Quaternion.Euler(0f, 90f, 0f);
+                }
             }
 
             GameObject farWP = GameObject.Find("WP_FarRoom");
@@ -487,9 +502,60 @@ namespace HorrorEscape.Editor
                     GameObject c = (GameObject)PrefabUtility.InstantiatePrefab(canisterPrefab, decorRoot.transform);
                     c.transform.position = farPos + new Vector3(-1.0f, 0f, 0.9f);
                 }
+
+                // Broken floor debris slab in the monster's lair
+                GameObject debrisPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(DebrisFloorPrefabPath);
+                if (debrisPrefab != null)
+                {
+                    GameObject d = (GameObject)PrefabUtility.InstantiatePrefab(debrisPrefab, decorRoot.transform);
+                    d.transform.position = farPos + new Vector3(0.5f, 0.01f, -0.5f);
+                    d.transform.rotation = Quaternion.identity;
+                }
+
+                // Sledgehammer and scrap metal in far room
+                GameObject sledgePrefab = AssetDatabase.LoadAssetAtPath<GameObject>(SledgehammerPrefabPath);
+                if (sledgePrefab != null)
+                {
+                    GameObject s = (GameObject)PrefabUtility.InstantiatePrefab(sledgePrefab, decorRoot.transform);
+                    s.transform.position = farPos + new Vector3(-1.2f, 0.05f, 0.2f);
+                    s.transform.rotation = Quaternion.Euler(85f, 15f, 0f);
+                }
             }
 
-            Debug.Log("[PolygonSurvivalSetup] Atmospheric survival props placed across maze.");
+            // Early room & Mid room storytelling decorations
+            GameObject midWP = GameObject.Find("WP_MidRoom");
+            if (midWP != null)
+            {
+                Vector3 midPos = midWP.transform.position;
+                midPos.y = 0f;
+
+                // Pallet stack with scrap metal
+                GameObject palletPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(PalletPrefabPath);
+                if (palletPrefab != null)
+                {
+                    GameObject p = (GameObject)PrefabUtility.InstantiatePrefab(palletPrefab, decorRoot.transform);
+                    p.transform.position = midPos + new Vector3(-1.5f, 0f, 1.2f);
+                    p.transform.rotation = Quaternion.Euler(0f, -25f, 0f);
+                }
+
+                GameObject scrapPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(ScrapMetalPrefabPath);
+                if (scrapPrefab != null)
+                {
+                    GameObject sc = (GameObject)PrefabUtility.InstantiatePrefab(scrapPrefab, decorRoot.transform);
+                    sc.transform.position = midPos + new Vector3(-1.4f, 0.15f, 1.3f);
+                }
+
+                // Modular doorframe in midroom threshold
+                GameObject doorPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(DoorPrefabPath);
+                if (doorPrefab != null)
+                {
+                    GameObject d = (GameObject)PrefabUtility.InstantiatePrefab(doorPrefab, decorRoot.transform);
+                    d.transform.position = midPos + new Vector3(2.8f, 0f, 0f);
+                    d.transform.rotation = Quaternion.Euler(0f, -90f, 0f);
+                }
+            }
+
+            Debug.Log("[PolygonSurvivalSetup] Atmospheric survival and Backrooms modular props placed across maze.");
         }
     }
 }

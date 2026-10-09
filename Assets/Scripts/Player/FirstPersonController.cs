@@ -45,7 +45,6 @@ namespace HorrorEscape.Player
         [SerializeField] private float crouchTransitionSpeed = 8.0f;
 
         [Header("Character Model Culling")]
-        [SerializeField] private Animator characterAnimator;
         private Transform headBone;
         private Vector3 originalHeadScale = Vector3.one;
         private readonly System.Collections.Generic.List<Renderer> headAndHairRenderers = new System.Collections.Generic.List<Renderer>();
