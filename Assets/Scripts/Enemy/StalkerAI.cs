@@ -81,7 +81,10 @@ namespace HorrorEscape.Enemy
         private float soundReactionCooldown;
 
         public StalkerState CurrentState => currentState;
+        public bool IsDormant => isDormant;
         public void SetAnimator(Animator anim) => animator = anim;
+
+        private EntityProximityAudio entityAudio;
 
         private void Awake()
         {
@@ -91,6 +94,27 @@ namespace HorrorEscape.Enemy
                 animator = GetComponentInChildren<Animator>();
             }
             currentHealth = maxHealth;
+
+            // Proximity vocalisations from the Backrooms Entity SFX pack
+            entityAudio = GetComponent<EntityProximityAudio>();
+            if (entityAudio == null) entityAudio = gameObject.AddComponent<EntityProximityAudio>();
+        }
+
+        /// <summary>
+        /// Plays an entity vocalisation from the entity's position. Falls back to the
+        /// old procedural clip if the Entity SFX pack isn't assigned on the AudioManager.
+        /// </summary>
+        private void PlayEntityVocal(float volume, AudioClip fallbackClip, bool fallbackIs2D, float fallbackRange = 20f)
+        {
+            if (entityAudio != null && AudioManager.Instance != null && AudioManager.Instance.HasEntityClips)
+            {
+                entityAudio.PlayReaction(volume);
+                return;
+            }
+
+            if (AudioManager.Instance == null || fallbackClip == null) return;
+            if (fallbackIs2D) AudioManager.Instance.Play2D(fallbackClip, volume);
+            else AudioManager.Instance.PlayAtPosition(fallbackClip, transform.position, volume, fallbackRange);
         }
 
         private void Start()
@@ -227,11 +251,7 @@ namespace HorrorEscape.Enemy
         private void OnSpotPlayer()
         {
             SetState(StalkerState.Chase);
-
-            if (AudioManager.Instance != null && AudioManager.Instance.monsterSpottedClip != null)
-            {
-                AudioManager.Instance.Play2D(AudioManager.Instance.monsterSpottedClip, 0.9f);
-            }
+            PlayEntityVocal(1.0f, AudioManager.Instance != null ? AudioManager.Instance.monsterSpottedClip : null, true);
         }
 
         public void OnHearNoise(Vector3 noiseOrigin)
@@ -243,10 +263,7 @@ namespace HorrorEscape.Enemy
             lastKnownPlayerPos = noiseOrigin;
             SetState(StalkerState.Investigate);
 
-            if (AudioManager.Instance != null && AudioManager.Instance.monsterGrowlClip != null)
-            {
-                AudioManager.Instance.PlayAtPosition(AudioManager.Instance.monsterGrowlClip, transform.position, 0.5f);
-            }
+            PlayEntityVocal(0.6f, AudioManager.Instance != null ? AudioManager.Instance.monsterGrowlClip : null, false);
         }
 
         private void SetState(StalkerState newState)
@@ -474,10 +491,7 @@ namespace HorrorEscape.Enemy
 
             SetState(StalkerState.Stunned);
 
-            if (AudioManager.Instance != null && AudioManager.Instance.monsterGrowlClip != null)
-            {
-                AudioManager.Instance.PlayAtPosition(AudioManager.Instance.monsterGrowlClip, transform.position, 1.0f, 20f);
-            }
+            PlayEntityVocal(1.0f, AudioManager.Instance != null ? AudioManager.Instance.monsterGrowlClip : null, false);
 
             if (HUDManager.Instance != null)
             {
@@ -496,9 +510,14 @@ namespace HorrorEscape.Enemy
                 HUDManager.Instance.ShowNotification("Entity Banished! Area is safe.");
             }
 
-            if (AudioManager.Instance != null && AudioManager.Instance.monsterGrowlClip != null)
+            if (AudioManager.Instance != null)
             {
-                AudioManager.Instance.PlayAtPosition(AudioManager.Instance.monsterGrowlClip, transform.position, 1.0f, 25f);
+                // Detached source so the death cry isn't cut off when this object is destroyed
+                AudioClip deathClip = AudioManager.Instance.HasEntityClips
+                    ? AudioManager.Instance.GetRandomEntityClip()
+                    : AudioManager.Instance.monsterGrowlClip;
+                if (entityAudio != null) entityAudio.enabled = false;
+                AudioManager.Instance.PlayAtPosition(deathClip, transform.position, 1.0f, 25f);
             }
 
             Destroy(gameObject, 2.5f);

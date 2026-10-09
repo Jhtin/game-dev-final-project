@@ -142,16 +142,25 @@ namespace HorrorEscape.Managers
             if (hasTriggeredPhase2Announcement) return;
             hasTriggeredPhase2Announcement = true;
 
+            // Transition ambient track to eerie tension music
+            if (AudioManager.Instance != null)
+            {
+                AudioManager.Instance.PlayTensionAmbience();
+            }
+
             // Activate stalker for cautious distant patrolling
             if (stalker != null)
             {
                 stalker.SetDormant(false);
             }
 
-            // Trigger immediate eerie audio cue
-            if (AudioManager.Instance != null && AudioManager.Instance.distantGroanClip != null)
+            // Trigger immediate eerie vocal / audio cue from the Entity SFX pack
+            if (AudioManager.Instance != null)
             {
-                AudioManager.Instance.Play2D(AudioManager.Instance.distantGroanClip, 0.7f);
+                AudioClip cue = AudioManager.Instance.HasEntityClips
+                    ? AudioManager.Instance.GetRandomEntityClip()
+                    : AudioManager.Instance.distantGroanClip;
+                if (cue != null) AudioManager.Instance.Play2D(cue, 0.7f);
             }
 
             // Subtle momentary light flicker in facility
@@ -172,10 +181,13 @@ namespace HorrorEscape.Managers
                     break;
 
                 case 1:
-                    // Resonant hollow pipe groan
-                    if (AudioManager.Instance != null && AudioManager.Instance.distantGroanClip != null)
+                    // Resonant hollow entity moan / distant roar
+                    if (AudioManager.Instance != null)
                     {
-                        AudioManager.Instance.Play2D(AudioManager.Instance.distantGroanClip, 0.7f);
+                        AudioClip groan = AudioManager.Instance.HasEntityClips
+                            ? AudioManager.Instance.GetRandomEntityClip()
+                            : AudioManager.Instance.distantGroanClip;
+                        if (groan != null) AudioManager.Instance.Play2D(groan, 0.65f);
                     }
                     break;
 
@@ -214,6 +226,12 @@ namespace HorrorEscape.Managers
             if (isPowerRestored) return;
             isPowerRestored = true;
             currentPhase = GamePhase.Phase5_Escape;
+
+            // Transition ambient track to final tense escape music
+            if (AudioManager.Instance != null)
+            {
+                AudioManager.Instance.PlayEscapeAmbience();
+            }
 
             // Power surge audio
             if (AudioManager.Instance != null && AudioManager.Instance.powerRestoreClip != null)

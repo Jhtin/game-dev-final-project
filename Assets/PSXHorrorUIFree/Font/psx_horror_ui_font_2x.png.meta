@@ -1,0 +1,37 @@
+fileFormatVersion: 2
+guid: fdf790b5736fb44a4d127f1de04bbe42
+TextureImporter:
+  externalObjects: {}
+  serializedVersion: 12
+  mipmaps:
+    enableMipMap: 0
+  isReadable: 0
+  nPOTScale: 0
+  alphaUsage: 1
+  alphaIsTransparency: 1
+  textureType: 0
+  textureShape: 1
+  textureSettings:
+    serializedVersion: 2
+    filterMode: 0
+    aniso: 1
+    mipBias: 0
+    wrapU: 1
+    wrapV: 1
+    wrapW: 1
+  platformSettings:
+  - serializedVersion: 3
+    buildTarget: DefaultTexturePlatform
+    maxTextureSize: 2048
+    textureFormat: -1
+    textureCompression: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 412806
+  packageName: PSX Horror UI Free
+  packageVersion: 1.0.1
+  assetPath: Assets/PSXHorrorUIFree/Font/psx_horror_ui_font_2x.png
+  uploadId: 1009736

@@ -40,7 +40,33 @@ namespace HorrorEscape.Audio
         public AudioClip typewriterClickClip;
         public AudioClip terminalBeepClip;
 
+        [Header("Ambience Music (Backrooms Ambience pack) - crossfades per game phase")]
+        [Tooltip("Phase 1: calm exploration (0:00 - 3:00)")]
+        public AudioClip ambienceExploreClip;
+        [Tooltip("Phase 2-4: something is wrong / entity active")]
+        public AudioClip ambienceTensionClip;
+        [Tooltip("Phase 5: power restored, escape")]
+        public AudioClip ambienceEscapeClip;
+        [Range(0f, 1f)] public float ambienceVolume = 0.45f;
+        [SerializeField] private float ambienceCrossfadeTime = 6.0f;
+
+        [Header("Entity Sounds (Backrooms Entity SFX pack)")]
+        public AudioClip[] entityClips;
+
         private readonly Dictionary<string, AudioClip> proceduralCache = new Dictionary<string, AudioClip>();
+
+        // Ambience crossfade state (two sources so tracks can overlap while fading)
+        private AudioSource ambienceSourceA;
+        private AudioSource ambienceSourceB;
+        private AudioSource activeAmbienceSource;
+        private Coroutine ambienceFadeRoutine;
+
+        // Shuffle bag so the same entity sound never plays twice in a row
+        private readonly List<int> entityBag = new List<int>();
+        private int lastEntityIndex = -1;
+
+        public bool HasEntityClips => entityClips != null && entityClips.Length > 0;
+        public bool HasAmbienceTracks => ambienceExploreClip != null || ambienceTensionClip != null || ambienceEscapeClip != null;
 
         private void Awake()
         {
@@ -55,6 +81,77 @@ namespace HorrorEscape.Audio
             GenerateFallbackClipsIfNeeded();
             StartAmbientMusic();
         }
+
+        #region Ambience & Entity Clip API
+
+        /// <summary>Crossfades the background ambience to the given track (looped).</summary>
+        public void CrossfadeAmbience(AudioClip clip, float fadeTime = -1f)
+        {
+            if (clip == null || ambienceSourceA == null) return;
+            if (activeAmbienceSource != null && activeAmbienceSource.clip == clip && activeAmbienceSource.isPlaying) return;
+            if (fadeTime < 0f) fadeTime = ambienceCrossfadeTime;
+
+            AudioSource from = activeAmbienceSource;
+            AudioSource to = (from == ambienceSourceA) ? ambienceSourceB : ambienceSourceA;
+
+            to.clip = clip;
+            to.volume = 0f;
+            to.Play();
+            activeAmbienceSource = to;
+
+            if (ambienceFadeRoutine != null) StopCoroutine(ambienceFadeRoutine);
+            ambienceFadeRoutine = StartCoroutine(CrossfadeRoutine(from, to, fadeTime));
+        }
+
+        private System.Collections.IEnumerator CrossfadeRoutine(AudioSource from, AudioSource to, float duration)
+        {
+            float fromStart = from != null ? from.volume : 0f;
+            float t = 0f;
+            while (t < 1f)
+            {
+                // Unscaled so fades still complete while the game is paused
+                t += Time.unscaledDeltaTime / Mathf.Max(0.01f, duration);
+                to.volume = Mathf.Lerp(0f, ambienceVolume, t);
+                if (from != null) from.volume = Mathf.Lerp(fromStart, 0f, t);
+                yield return null;
+            }
+            to.volume = ambienceVolume;
+            if (from != null) { from.Stop(); from.volume = 0f; }
+            ambienceFadeRoutine = null;
+        }
+
+        public void PlayExploreAmbience() => CrossfadeAmbience(ambienceExploreClip != null ? ambienceExploreClip : (ambienceTensionClip != null ? ambienceTensionClip : ambienceEscapeClip));
+        public void PlayTensionAmbience() => CrossfadeAmbience(ambienceTensionClip != null ? ambienceTensionClip : ambienceExploreClip);
+        public void PlayEscapeAmbience() => CrossfadeAmbience(ambienceEscapeClip != null ? ambienceEscapeClip : ambienceTensionClip);
+
+        /// <summary>Returns a random entity clip, never repeating until every clip has been used once.</summary>
+        public AudioClip GetRandomEntityClip()
+        {
+            if (!HasEntityClips) return null;
+
+            if (entityBag.Count == 0)
+            {
+                for (int i = 0; i < entityClips.Length; i++)
+                {
+                    if (entityClips[i] != null) entityBag.Add(i);
+                }
+                if (entityBag.Count == 0) return null;
+            }
+
+            int pick = Random.Range(0, entityBag.Count);
+            // Avoid an immediate repeat across bag refills
+            if (entityBag.Count > 1 && entityBag[pick] == lastEntityIndex)
+            {
+                pick = (pick + 1) % entityBag.Count;
+            }
+
+            int clipIndex = entityBag[pick];
+            entityBag.RemoveAt(pick);
+            lastEntityIndex = clipIndex;
+            return entityClips[clipIndex];
+        }
+
+        #endregion
 
         private void EnsureAudioSources()
         {
@@ -89,6 +186,20 @@ namespace HorrorEscape.Audio
                 fluorescentHumSource.playOnAwake = false;
                 fluorescentHumSource.volume = 0.35f;
             }
+
+            if (ambienceSourceA == null) ambienceSourceA = CreateAmbienceSource();
+            if (ambienceSourceB == null) ambienceSourceB = CreateAmbienceSource();
+        }
+
+        private AudioSource CreateAmbienceSource()
+        {
+            AudioSource src = gameObject.AddComponent<AudioSource>();
+            src.loop = true;
+            src.playOnAwake = false;
+            src.spatialBlend = 0f;
+            src.volume = 0f;
+            src.priority = 32;
+            return src;
         }
 
         private void GenerateFallbackClipsIfNeeded()
@@ -117,7 +228,13 @@ namespace HorrorEscape.Audio
 
         public void StartAmbientMusic()
         {
-            if (ambientDroneClip != null && musicSource != null)
+            if (HasAmbienceTracks)
+            {
+                // Real ambience tracks replace the procedural drone; fade in gently on spawn
+                PlayExploreAmbience();
+                if (fluorescentHumSource != null) fluorescentHumSource.volume = 0.12f;
+            }
+            else if (ambientDroneClip != null && musicSource != null)
             {
                 musicSource.clip = ambientDroneClip;
                 musicSource.Play();

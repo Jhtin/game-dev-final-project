@@ -1,0 +1,6 @@
+{
+    "name": "HeyHeyThere.PSXHorrorUIFree",
+    "rootNamespace": "HeyHeyThere.PSXHorrorUIFree",
+    "references": ["Unity.TextMeshPro", "UnityEngine.UI"],
+    "autoReferenced": true
+}

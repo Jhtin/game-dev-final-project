@@ -1,0 +1,30 @@
+PSX Horror UI Free
+
+Documentation. A pixel-art UGUI kit: 1 theme (Fog), 9 icons and a pixel font.
+
+  Prefabs/<Theme>/     a prefab per control: Button (and MenuItem, SaveSlot), Checkbox, Radio,
+                       Slider, Bar (and FineBar, CautionBar, DangerBar, PoisonBar), Scrollbar,
+                       ScrollView, InputField, Dropdown, Tabs, Tooltip, Panel, Window (and
+                       InsetPanel, ItemSlot, ItemSlotSelected, ItemSlotEquipped, ExaminePanel,
+                       DialoguePanel, MonitorPanel, DocumentPanel, MapRoom, MapRoomItems,
+                       MapRoomCurrent, MapRoomUnknown), Label (and Title, Ink, Heading, Hint,
+                       Headline, Count, Fine, Caution, Danger, Poison), Separator; Marks/<name> for
+                       each of its marks
+  Themes/<Theme>.asset the theme's prefabs by name (PixelTheme), for code that builds or reskins UI
+  Sprites/             every piece as a sprite, 9-sliced (borders set), point filtered, uncompressed
+  Font/                the fonts as BMFont and as the TextMesh Pro assets Ribbon TMP.asset, Ribbon
+                       2x TMP.asset
+  Demo/PSXHorrorUIFreeDemo.unity   the demo, built from the prefabs in code; the buttons along the
+                       bottom swap the theme
+
+Put a prefab under a Canvas: the prefabs lay themselves out, padded as the theme draws them, so they
+stack in rows and columns. Give the canvas PixelCanvas, which scales it by the largest whole number
+that fits the art height you set, so the pixels stay square (the sprites are 100 pixels per unit:
+an art pixel is a canvas unit). The text is crisp at font size 9 and its multiples.
+
+PixelButton is a Button that also sets its label's and icon's colour and its padding per state;
+PixelLabel draws a text's pixel shadow; PixelBar fills a bar; PixelTabs shows a page per tab;
+a TooltipArea shows its text in its canvas's Tooltip.
+
+Needs Unity 6.3 or later and TextMesh Pro's Essential Resources (Window > TextMeshPro > Import
+TMP Essential Resources; Unity offers it when a TMP text first shows).
