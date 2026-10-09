@@ -7,13 +7,15 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.AI;
 using HorrorEscape.Enemy;
+using HorrorEscape.Inventory;
 
 namespace HorrorEscape.Editor
 {
     /// <summary>
     /// Editor utility to import, configure Humanoid avatars, loop animations,
-    /// build an Animator Controller, and instantiate the authentic Scary Zombie model
-    /// (Ch17_nonPBR / zombie.fbx) onto the Stalker Enemy in the Backrooms level.
+    /// build an Animator Controller, and instantiate the authentic Mixamo Scary Zombie (Ch10)
+    /// model with rotten flesh/decayed textures onto the Stalker Enemy in the Backrooms level.
+    /// Also ensures duplicate enemy cleanup and scene stability.
     /// </summary>
     public static class ScaryZombieSetup
     {
@@ -21,6 +23,8 @@ namespace HorrorEscape.Editor
         private const string AnimDir = "Assets/Characters/Zombie/Animations";
         private const string ControllerPath = "Assets/Characters/Zombie/ZombieAnimatorController.controller";
         private const string ScenePath = "Assets/Scenes/HorrorEscapeLevel.unity";
+        private const string BodyMatPath = "Assets/Characters/Zombie/Materials/Ch10_body.mat";
+        private const string HeadMatPath = "Assets/Characters/Zombie/Materials/Ch10_head.mat";
 
         [MenuItem("Tools/Setup Scary Zombie Enemy & Animations")]
         public static void SetupScaryZombieMenu()
@@ -30,14 +34,17 @@ namespace HorrorEscape.Editor
             if (!Application.isBatchMode)
             {
                 EditorUtility.DisplayDialog("Scary Zombie Setup",
-                    "Scary Zombie 3D model, Humanoid avatar, looping animations, and Animator Controller successfully configured and attached to the Stalker Enemy in the Backrooms level!",
+                    "Authentic Mixamo Zombie Ch10 model, materials, Humanoid avatar, looping animations, and Animator Controller successfully configured and attached to the Stalker Enemy in the Backrooms level!",
                     "OK");
             }
         }
 
         public static void SetupScaryZombieBatch()
         {
-            Debug.Log("[ScaryZombieSetup] Starting Scary Zombie configuration...");
+            Debug.Log("[ScaryZombieSetup] Starting Scary Zombie Ch10 configuration...");
+
+            // 0. Ensure Textures & Materials
+            ConfigureTexturesAndMaterials();
 
             // 1. Configure zombie.fbx as Humanoid Avatar
             ConfigureZombieModelImporter();
@@ -57,13 +64,81 @@ namespace HorrorEscape.Editor
             // 4. Build or update the Zombie Animator Controller
             RuntimeAnimatorController animController = BuildAnimatorController();
 
-            // 5. Open scene and attach model to Stalker Enemy rig
+            // 5. Open scene, deduplicate enemies, and attach model to Stalker Enemy rig
             AttachZombieToSceneEnemy(zombieAvatar, animController);
 
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
 
-            Debug.Log("[ScaryZombieSetup] Scary Zombie configuration finished successfully!");
+            Debug.Log("[ScaryZombieSetup] Scary Zombie Ch10 configuration finished successfully!");
+        }
+
+        private static void ConfigureTexturesAndMaterials()
+        {
+            // Configure Normal Maps
+            string[] normalPaths = {
+                "Assets/Characters/Zombie/Textures/Ch10_1001_Normal.png",
+                "Assets/Characters/Zombie/Textures/Ch10_1002_Normal.png"
+            };
+
+            foreach (var path in normalPaths)
+            {
+                if (File.Exists(path))
+                {
+                    TextureImporter ti = AssetImporter.GetAtPath(path) as TextureImporter;
+                    if (ti != null && ti.textureType != TextureImporterType.NormalMap)
+                    {
+                        ti.textureType = TextureImporterType.NormalMap;
+                        ti.sRGBTexture = false;
+                        ti.SaveAndReimport();
+                        Debug.Log("[ScaryZombieSetup] Configured normal map at " + path);
+                    }
+                }
+            }
+
+            Directory.CreateDirectory("Assets/Characters/Zombie/Materials");
+
+            // Ensure Body Material
+            Material bodyMat = AssetDatabase.LoadAssetAtPath<Material>(BodyMatPath);
+            if (bodyMat == null)
+            {
+                bodyMat = new Material(Shader.Find("Standard"));
+                bodyMat.name = "Ch10_body";
+                AssetDatabase.CreateAsset(bodyMat, BodyMatPath);
+            }
+            Texture2D bodyTex = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Characters/Zombie/Textures/Ch10_1001_Diffuse.png");
+            Texture2D bodyNorm = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Characters/Zombie/Textures/Ch10_1001_Normal.png");
+            if (bodyTex != null) bodyMat.mainTexture = bodyTex;
+            if (bodyNorm != null)
+            {
+                bodyMat.EnableKeyword("_NORMALMAP");
+                bodyMat.SetTexture("_BumpMap", bodyNorm);
+            }
+            bodyMat.SetFloat("_Glossiness", 0.35f);
+            bodyMat.SetFloat("_Metallic", 0.1f);
+            EditorUtility.SetDirty(bodyMat);
+
+            // Ensure Head Material
+            Material headMat = AssetDatabase.LoadAssetAtPath<Material>(HeadMatPath);
+            if (headMat == null)
+            {
+                headMat = new Material(Shader.Find("Standard"));
+                headMat.name = "Ch10_head";
+                AssetDatabase.CreateAsset(headMat, HeadMatPath);
+            }
+            Texture2D headTex = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Characters/Zombie/Textures/Ch10_1002_Diffuse.png");
+            Texture2D headNorm = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Characters/Zombie/Textures/Ch10_1002_Normal.png");
+            if (headTex != null) headMat.mainTexture = headTex;
+            if (headNorm != null)
+            {
+                headMat.EnableKeyword("_NORMALMAP");
+                headMat.SetTexture("_BumpMap", headNorm);
+            }
+            headMat.SetFloat("_Glossiness", 0.4f);
+            headMat.SetFloat("_Metallic", 0.05f);
+            EditorUtility.SetDirty(headMat);
+
+            AssetDatabase.SaveAssets();
         }
 
         private static void ConfigureZombieModelImporter()
@@ -286,33 +361,62 @@ namespace HorrorEscape.Editor
         {
             var scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
 
-            GameObject enemyGO = GameObject.Find("StalkerEnemy");
-            if (enemyGO == null)
+            // 1. Clean up duplicate StalkerEnemy instances in the scene
+            StalkerAI[] allStalkers = UnityEngine.Object.FindObjectsByType<StalkerAI>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            GameObject enemyGO = null;
+
+            if (allStalkers != null && allStalkers.Length > 0)
             {
-                StalkerAI ai = UnityEngine.Object.FindFirstObjectByType<StalkerAI>();
-                if (ai != null) enemyGO = ai.gameObject;
+                enemyGO = allStalkers[0].gameObject;
+                for (int i = 1; i < allStalkers.Length; i++)
+                {
+                    Debug.Log($"[ScaryZombieSetup] Destroying duplicate StalkerEnemy instance {allStalkers[i].gameObject.name}");
+                    UnityEngine.Object.DestroyImmediate(allStalkers[i].gameObject);
+                }
             }
 
             if (enemyGO == null)
             {
-                Debug.LogError("[ScaryZombieSetup] Could not find StalkerEnemy in scene " + ScenePath);
-                return;
+                enemyGO = GameObject.Find("StalkerEnemy");
             }
 
-            // Remove old placeholder body and eye objects
-            Transform oldBody = enemyGO.transform.Find("Body");
-            if (oldBody != null) UnityEngine.Object.DestroyImmediate(oldBody.gameObject);
+            if (enemyGO == null)
+            {
+                enemyGO = new GameObject("StalkerEnemy");
+                enemyGO.transform.position = new Vector3(10.5f, 0.1f, 16.5f);
+            }
 
-            Transform oldEyeL = enemyGO.transform.Find("EyeLeft");
-            if (oldEyeL != null) UnityEngine.Object.DestroyImmediate(oldEyeL.gameObject);
+            // Clean up empty or duplicate "Enemies" root parents
+            GameObject[] rootObjects = scene.GetRootGameObjects();
+            GameObject mainEnemiesParent = null;
+            foreach (var r in rootObjects)
+            {
+                if (r.name == "Enemies")
+                {
+                    if (mainEnemiesParent == null)
+                    {
+                        mainEnemiesParent = r;
+                    }
+                    else
+                    {
+                        UnityEngine.Object.DestroyImmediate(r);
+                    }
+                }
+            }
+            if (mainEnemiesParent == null) mainEnemiesParent = new GameObject("Enemies");
+            enemyGO.transform.SetParent(mainEnemiesParent.transform, true);
 
-            Transform oldEyeR = enemyGO.transform.Find("EyeRight");
-            if (oldEyeR != null) UnityEngine.Object.DestroyImmediate(oldEyeR.gameObject);
+            // Remove previous model representations
+            for (int i = enemyGO.transform.childCount - 1; i >= 0; i--)
+            {
+                Transform child = enemyGO.transform.GetChild(i);
+                if (child.name.Contains("Zombie") || child.name.Contains("Body") || child.name.Contains("Eye"))
+                {
+                    UnityEngine.Object.DestroyImmediate(child.gameObject);
+                }
+            }
 
-            Transform existingZombie = enemyGO.transform.Find("ZombieCharacter");
-            if (existingZombie != null) UnityEngine.Object.DestroyImmediate(existingZombie.gameObject);
-
-            // Instantiate zombie.fbx model as child
+            // 2. Instantiate authentic Mixamo Zombie Ch10 model
             GameObject zombiePrefab = AssetDatabase.LoadAssetAtPath<GameObject>(ZombieFbxPath);
             if (zombiePrefab == null)
             {
@@ -326,31 +430,77 @@ namespace HorrorEscape.Editor
             modelInstance.transform.localRotation = Quaternion.identity;
             modelInstance.transform.localScale = Vector3.one * 1.0f;
 
-            // Configure Animator
+            // 3. Assign authentic zombie materials
+            Material bodyMat = AssetDatabase.LoadAssetAtPath<Material>(BodyMatPath);
+            Material headMat = AssetDatabase.LoadAssetAtPath<Material>(HeadMatPath);
+
+            var smrs = modelInstance.GetComponentsInChildren<SkinnedMeshRenderer>(true);
+            foreach (var smr in smrs)
+            {
+                Material[] currentMats = smr.sharedMaterials;
+                for (int m = 0; m < currentMats.Length; m++)
+                {
+                    string mName = (currentMats[m] != null ? currentMats[m].name : smr.name).ToLower();
+                    if (mName.Contains("hair") || mName.Contains("head") || mName.Contains("1002"))
+                    {
+                        currentMats[m] = headMat;
+                    }
+                    else
+                    {
+                        currentMats[m] = bodyMat;
+                    }
+                }
+                smr.sharedMaterials = currentMats;
+            }
+
+            // 4. Configure Animator
             Animator anim = modelInstance.GetComponent<Animator>();
             if (anim == null) anim = modelInstance.AddComponent<Animator>();
             anim.avatar = avatar;
             anim.runtimeAnimatorController = controller;
             anim.applyRootMotion = false;
 
-            // Configure NavMeshAgent
+            // 5. Configure NavMeshAgent
             NavMeshAgent agent = enemyGO.GetComponent<NavMeshAgent>();
             if (agent == null) agent = enemyGO.AddComponent<NavMeshAgent>();
             agent.height = 1.9f;
             agent.radius = 0.45f;
             agent.baseOffset = 0f;
+            agent.speed = 2.0f;
+            agent.stoppingDistance = 0.5f;
 
-            // Configure StalkerAI
+            // 6. Configure CapsuleCollider
+            CapsuleCollider col = enemyGO.GetComponent<CapsuleCollider>();
+            if (col == null) col = enemyGO.AddComponent<CapsuleCollider>();
+            col.height = 1.9f;
+            col.radius = 0.45f;
+            col.center = new Vector3(0f, 0.95f, 0f);
+
+            // 7. Configure StalkerAI
             StalkerAI stalkerAI = enemyGO.GetComponent<StalkerAI>();
-            if (stalkerAI != null)
+            if (stalkerAI == null) stalkerAI = enemyGO.AddComponent<StalkerAI>();
+            stalkerAI.SetAnimator(anim);
+
+            // Ensure waypoints are assigned
+            Transform wpFar = GameObject.Find("WP_FarRoom")?.transform;
+            Transform wpMaint = GameObject.Find("WP_MaintRoom")?.transform;
+            Transform wpKey = GameObject.Find("WP_KeyRoom")?.transform;
+            if (wpFar != null) stalkerAI.AddWaypoint(wpFar);
+            if (wpMaint != null) stalkerAI.AddWaypoint(wpMaint);
+            if (wpKey != null) stalkerAI.AddWaypoint(wpKey);
+
+            // 8. Ensure InventoryManager is in the scene
+            if (UnityEngine.Object.FindFirstObjectByType<InventoryManager>() == null)
             {
-                stalkerAI.SetAnimator(anim);
+                GameObject invGO = new GameObject("InventoryManager");
+                invGO.AddComponent<InventoryManager>();
+                Debug.Log("[ScaryZombieSetup] Created InventoryManager in scene.");
             }
 
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene);
 
-            Debug.Log("[ScaryZombieSetup] Attached Scary Zombie character and Animator to StalkerEnemy!");
+            Debug.Log("[ScaryZombieSetup] Attached Authentic Mixamo Zombie Ch10 character and Animator to StalkerEnemy!");
         }
     }
 }

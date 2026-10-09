@@ -3,7 +3,13 @@ guid: 32a57053b7d8b0d40889ca104be29da8
 ModelImporter:
   serializedVersion: 24200
   internalIDToNameTable: []
-  externalObjects: {}
+  externalObjects:
+    Ch10_body: {fileID: 2100000, guid: d1010001000000000000000000000001, type: 2}
+    Ch10_hair: {fileID: 2100000, guid: d1010002000000000000000000000002, type: 2}
+    Ch10_head: {fileID: 2100000, guid: d1010002000000000000000000000002, type: 2}
+    Ch10: {fileID: 2100000, guid: d1010001000000000000000000000001, type: 2}
+    Ch10_nonPBR: {fileID: 2100000, guid: d1010001000000000000000000000001, type: 2}
+    Ch10_Skin: {fileID: 2100000, guid: d1010001000000000000000000000001, type: 2}
   materials:
     materialImportMode: 2
     materialName: 0

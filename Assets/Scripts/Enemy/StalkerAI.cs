@@ -231,15 +231,30 @@ namespace HorrorEscape.Enemy
             if (distToPlayer <= maxRange)
             {
                 float angle = Vector3.Angle(transform.forward, dirToPlayer);
-                // Also detect if player is close behind monster or around tight corridor corners (within 3.5m)
-                bool isVeryClose = distToPlayer < 3.5f;
+                // Also detect if player is close behind monster or around tight corridor corners (within 4.5m)
+                bool isVeryClose = distToPlayer < 4.5f;
 
                 if (angle < fieldOfViewAngle * 0.5f || isVeryClose)
                 {
-                    // Raycast to check line of sight
-                    if (!Physics.Raycast(eyePos, dirToPlayer.normalized, distToPlayer, sightObstacles, QueryTriggerInteraction.Ignore))
+                    // Raycast to check line of sight to player
+                    bool hasDirectLOS = false;
+                    if (Physics.Raycast(eyePos, dirToPlayer.normalized, out RaycastHit hit, distToPlayer + 0.5f, sightObstacles, QueryTriggerInteraction.Ignore))
                     {
-                        // Direct Line of Sight!
+                        // Check if hit object is the player, player's controller, or child of player
+                        if (hit.transform == playerTransform || hit.transform.IsChildOf(playerTransform) || 
+                            hit.collider.CompareTag("Player") || hit.collider.GetComponentInParent<FirstPersonController>() != null)
+                        {
+                            hasDirectLOS = true;
+                        }
+                    }
+                    else
+                    {
+                        // Unobstructed path to player position
+                        hasDirectLOS = true;
+                    }
+
+                    if (hasDirectLOS)
+                    {
                         lastKnownPlayerPos = playerTransform.position;
                         lostSightTimer = lostSightGraceDuration;
                         if (currentState != StalkerState.Chase)
@@ -251,8 +266,8 @@ namespace HorrorEscape.Enemy
                 }
             }
 
-            // Proximity awareness: if within 4.5m in tight corridors, monster detects player
-            if (distToPlayer < 4.5f && !playerController.IsCrouching)
+            // Proximity auditory/scent awareness: if within 6.5m in corridors, monster senses player presence!
+            if (distToPlayer < 6.5f && (!playerController.IsCrouching || distToPlayer < 3.0f))
             {
                 lastKnownPlayerPos = playerTransform.position;
                 lostSightTimer = lostSightGraceDuration;
@@ -382,10 +397,10 @@ namespace HorrorEscape.Enemy
         private void UpdatePatrolState()
         {
             if (agent == null || !agent.isOnNavMesh) return;
-            if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance + 0.3f)
+            if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance + 0.4f)
             {
                 stateTimer += Time.deltaTime;
-                if (stateTimer >= waypointWaitTime)
+                if (stateTimer >= 0.8f) // Brief pause to listen, then keep stalking!
                 {
                     stateTimer = 0f;
                     MoveToNextPatrolPoint();
@@ -396,6 +411,19 @@ namespace HorrorEscape.Enemy
         private void MoveToNextPatrolPoint()
         {
             if (agent == null || !agent.isOnNavMesh) return;
+
+            // 75% of the time, stalk actively towards the player's quadrant through labyrinth corridors!
+            if (playerTransform != null && Random.value < 0.75f)
+            {
+                Vector3 dirToPlayer = (playerTransform.position - transform.position).normalized;
+                Vector3 huntTarget = transform.position + dirToPlayer * Random.Range(10f, 22f) + Random.insideUnitSphere * 4f;
+                if (NavMesh.SamplePosition(huntTarget, out NavMeshHit huntHit, 16f, NavMesh.AllAreas))
+                {
+                    agent.SetDestination(huntHit.position);
+                    return;
+                }
+            }
+
             if (waypoints.Count > 0)
             {
                 Transform wp = waypoints[currentWaypointIndex];
@@ -424,9 +452,9 @@ namespace HorrorEscape.Enemy
             {
                 stateTimer += Time.deltaTime;
                 // Look around in place
-                transform.Rotate(Vector3.up * (35f * Time.deltaTime));
+                transform.Rotate(Vector3.up * (45f * Time.deltaTime));
 
-                if (stateTimer >= 3.5f)
+                if (stateTimer >= 2.5f)
                 {
                     SetState(StalkerState.Patrol);
                 }
@@ -444,23 +472,8 @@ namespace HorrorEscape.Enemy
             float distToPlayer = Vector3.Distance(transform.position, playerTransform.position);
             if (distToPlayer <= killDistance)
             {
-                if (attackCooldownTimer <= 0f)
-                {
-                    attackCooldownTimer = attackCooldown;
-                    PlayerHealth pHealth = playerController != null ? playerController.GetComponent<PlayerHealth>() : null;
-                    if (pHealth != null)
-                    {
-                        pHealth.TakeDamage(attackDamage);
-                        if (pHealth.IsDead)
-                        {
-                            SetState(StalkerState.Attack);
-                        }
-                    }
-                    else
-                    {
-                        SetState(StalkerState.Attack);
-                    }
-                }
+                // Caught! Trigger immediate horrifying jumpscare!
+                SetState(StalkerState.Attack);
             }
         }
 
@@ -600,36 +613,100 @@ namespace HorrorEscape.Enemy
 
         private IEnumerator ExecuteKillSequence()
         {
-            // Face player towards monster violently (classic jumpscare!)
+            if (agent != null && agent.isOnNavMesh)
+            {
+                agent.isStopped = true;
+                agent.velocity = Vector3.zero;
+            }
+
+            // 1. Immediately disable player input and lock movement
             if (playerController != null)
             {
                 playerController.enabled = false;
             }
 
-            // Play jumpscare scream
-            if (AudioManager.Instance != null && AudioManager.Instance.jumpscareClip != null)
+            // 2. Warp monster directly in front of the player's camera at eye level (~0.85m)
+            Transform camTransform = Camera.main != null ? Camera.main.transform : null;
+            if (camTransform != null)
             {
-                AudioManager.Instance.Play2D(AudioManager.Instance.jumpscareClip, 1.0f);
+                Vector3 forward = camTransform.forward;
+                forward.y = 0f;
+                forward.Normalize();
+                if (forward.sqrMagnitude < 0.01f) forward = transform.forward;
+
+                Vector3 screamerPos = camTransform.position + forward * 0.85f;
+                screamerPos.y = playerTransform != null ? playerTransform.position.y : transform.position.y;
+
+                if (agent != null && agent.isOnNavMesh)
+                {
+                    agent.Warp(screamerPos);
+                }
+                else
+                {
+                    transform.position = screamerPos;
+                }
+
+                // Face the player camera dead-on
+                transform.rotation = Quaternion.LookRotation((camTransform.position - screamerPos).normalized);
             }
 
-            Transform camTransform = Camera.main != null ? Camera.main.transform : null;
-            float t = 0f;
-            Vector3 monsterHeadPos = transform.position + Vector3.up * eyeHeight;
-
-            while (t < 0.8f)
+            // 3. Trigger attack and scream animation
+            if (animator != null)
             {
-                t += Time.deltaTime;
+                animator.SetTrigger("Attack");
+            }
+
+            // 4. Play loud terrifying jumpscare screeches
+            if (AudioManager.Instance != null)
+            {
+                if (AudioManager.Instance.jumpscareClip != null)
+                {
+                    AudioManager.Instance.Play2D(AudioManager.Instance.jumpscareClip, 1.0f);
+                }
+                if (AudioManager.Instance.monsterSpottedClip != null)
+                {
+                    AudioManager.Instance.Play2D(AudioManager.Instance.monsterSpottedClip, 1.0f);
+                }
+            }
+
+            // 5. Trigger horror screen effects on HUD
+            if (HUDManager.Instance != null)
+            {
+                HUDManager.Instance.TriggerDamageFlash();
+            }
+
+            // 6. Violent camera screamer lock & violent shake jitter
+            float duration = 1.6f;
+            float elapsed = 0f;
+            Vector3 originalCamPos = camTransform != null ? camTransform.localPosition : Vector3.zero;
+
+            while (elapsed < duration)
+            {
+                elapsed += Time.deltaTime;
                 if (camTransform != null)
                 {
-                    Quaternion targetRot = Quaternion.LookRotation(monsterHeadPos - camTransform.position);
-                    camTransform.rotation = Quaternion.Slerp(camTransform.rotation, targetRot, t * 5f);
+                    Vector3 monsterFacePos = transform.position + Vector3.up * 1.55f;
+                    Quaternion lookRot = Quaternion.LookRotation((monsterFacePos - camTransform.position).normalized);
+                    camTransform.rotation = Quaternion.Slerp(camTransform.rotation, lookRot, Time.deltaTime * 30f);
+
+                    // Violent screen jitter
+                    float shakeAmt = Mathf.Lerp(0.09f, 0.02f, elapsed / duration);
+                    Vector3 jitter = new Vector3(
+                        Random.Range(-shakeAmt, shakeAmt),
+                        Random.Range(-shakeAmt, shakeAmt),
+                        Random.Range(-shakeAmt, shakeAmt)
+                    );
+                    camTransform.localPosition = originalCamPos + jitter;
                 }
                 yield return null;
             }
 
-            yield return new WaitForSeconds(0.4f);
+            if (camTransform != null)
+            {
+                camTransform.localPosition = originalCamPos;
+            }
 
-            // Game Over
+            // 7. Trigger Game Over
             if (GameManager.Instance != null)
             {
                 GameManager.Instance.TriggerGameOver();

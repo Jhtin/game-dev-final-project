@@ -405,6 +405,16 @@ namespace HorrorEscape.Player
                 float pitchMod = Random.Range(0.85f, 1.15f);
                 AudioManager.Instance.Play2D(AudioManager.Instance.footstepClip, vol, pitchMod);
             }
+
+            // Alert nearby stalkers to movement acoustic vibrations!
+            if (isSprinting)
+            {
+                EmitNoise(transform.position, 22.0f);
+            }
+            else if (!isCrouching)
+            {
+                EmitNoise(transform.position, 10.0f);
+            }
         }
 
         private void EmitNoise(Vector3 origin, float radius)

@@ -515,10 +515,11 @@ namespace HorrorEscape.Player
         private void EmitGunfireNoise(Vector3 origin, float radius)
         {
             Collider[] hits = Physics.OverlapSphere(origin, radius);
+            var notified = new System.Collections.Generic.HashSet<StalkerAI>();
             foreach (var hit in hits)
             {
-                var stalker = hit.GetComponent<StalkerAI>();
-                if (stalker != null)
+                var stalker = hit.GetComponentInParent<StalkerAI>();
+                if (stalker != null && notified.Add(stalker))
                 {
                     stalker.OnHearNoise(origin);
                 }
