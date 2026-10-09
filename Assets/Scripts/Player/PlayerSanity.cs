@@ -82,5 +82,13 @@ namespace HorrorEscape.Player
         {
             allEnemies = FindObjectsByType<StalkerAI>(FindObjectsSortMode.None);
         }
+
+        public void RestoreSanity(float amount)
+        {
+            if (HUDManager.Instance != null)
+            {
+                HUDManager.Instance.SetDangerVignette(0f);
+            }
+        }
     }
 }

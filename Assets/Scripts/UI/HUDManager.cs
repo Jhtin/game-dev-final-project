@@ -1456,9 +1456,9 @@ namespace HorrorEscape.UI
                 ammoHeaderText.text = "DEFENSE AMMO";
                 ammoHeaderText.raycastTarget = false;
                 RectTransform ahrt = aHeaderGO.GetComponent<RectTransform>();
-                hrt.anchorMin = new Vector2(0f, 1f);
-                hrt.anchorMax = new Vector2(1f, 1f);
-                hrt.pivot = new Vector2(1f, 1f);
+                ahrt.anchorMin = new Vector2(0f, 1f);
+                ahrt.anchorMax = new Vector2(1f, 1f);
+                ahrt.pivot = new Vector2(1f, 1f);
                 ahrt.anchoredPosition = new Vector2(-16f, -10f);
                 ahrt.sizeDelta = new Vector2(-70f, 18f);
 

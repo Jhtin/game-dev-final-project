@@ -25,6 +25,7 @@ namespace HorrorEscape.Inventory
     {
         public ItemType itemType;
         public string itemName;
+        public string displayName => !string.IsNullOrEmpty(itemName) ? itemName : itemType.ToString();
         public string description;
         public Sprite icon;
         public int quantity;
