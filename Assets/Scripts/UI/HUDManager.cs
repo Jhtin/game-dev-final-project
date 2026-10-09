@@ -482,10 +482,15 @@ namespace HorrorEscape.UI
             }
         }
 
-        public void UpdateAmmoText(int current, int reserve)
+        public void UpdateAmmoText(int current, int reserve, string weaponName = "9MM PISTOL")
         {
             lastKnownAmmo = current;
             lastKnownReserve = reserve;
+
+            if (ammoHeaderText != null)
+            {
+                ammoHeaderText.text = weaponName.ToUpper();
+            }
 
             if (ammoBodyText == null) return;
 

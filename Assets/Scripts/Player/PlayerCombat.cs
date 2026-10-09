@@ -6,29 +6,54 @@ using HorrorEscape.UI;
 
 namespace HorrorEscape.Player
 {
+    public enum WeaponType
+    {
+        Pistol,
+        SubmachineGun
+    }
+
     /// <summary>
-    /// Controls the emergency defense gun and ammunition system.
-    /// The player is given limited ammunition (starts with 6 / 6) to defend against
-    /// the Backrooms entity in emergencies without turning the game into a fast-paced shooter.
+    /// Controls the emergency defense weapons (Army Pistol and Tactical SMG) and ammunition system.
+    /// Supports authentic Polygon Survival 3D firearms with weapon switching, distinctive rates of fire,
+    /// recoil characteristics, and limited ammunition.
     /// </summary>
     public class PlayerCombat : MonoBehaviour
     {
-        [Header("Ammunition & Gun Stats")]
-        [SerializeField] private int currentAmmo = 6;
-        [SerializeField] private int maxClipAmmo = 6;
-        [SerializeField] private int reserveAmmo = 6;
-        [SerializeField] private float gunDamage = 50.0f;
-        [SerializeField] private float gunRange = 35.0f;
-        [SerializeField] private float fireCooldown = 0.5f;
-        [SerializeField] private float reloadTime = 1.3f;
-        [SerializeField] private LayerMask hitLayers = ~0;
+        [Header("Weapon Selection")]
+        [SerializeField] private WeaponType currentWeapon = WeaponType.Pistol;
+        [SerializeField] private bool hasUnlockedSMG = false;
 
-        [Header("Visual & Recoil")]
-        [SerializeField] private Transform weaponTransform;
+        [Header("Pistol Configuration")]
+        [SerializeField] private GameObject pistolObject;
+        [SerializeField] private int pistolCurrentAmmo = 6;
+        [SerializeField] private int pistolMaxClipAmmo = 6;
+        [SerializeField] private int pistolReserveAmmo = 6;
+        [SerializeField] private float pistolDamage = 50.0f;
+        [SerializeField] private float pistolRange = 35.0f;
+        [SerializeField] private float pistolFireCooldown = 0.45f;
+        [SerializeField] private float pistolReloadTime = 1.3f;
+        [SerializeField] private float pistolRecoilDistance = 0.08f;
+        [SerializeField] private float pistolRecoilAngle = 12.0f;
+
+        [Header("SMG Configuration")]
+        [SerializeField] private GameObject smgObject;
+        [SerializeField] private int smgCurrentAmmo = 20;
+        [SerializeField] private int smgMaxClipAmmo = 20;
+        [SerializeField] private int smgReserveAmmo = 20;
+        [SerializeField] private float smgDamage = 26.0f;
+        [SerializeField] private float smgRange = 32.0f;
+        [SerializeField] private float smgFireCooldown = 0.12f; // ~500 RPM full-auto
+        [SerializeField] private float smgReloadTime = 1.8f;
+        [SerializeField] private float smgRecoilDistance = 0.05f;
+        [SerializeField] private float smgRecoilAngle = 6.0f;
+
+        [Header("Layer & Audio")]
+        [SerializeField] private LayerMask hitLayers = ~0;
         [SerializeField] private Light muzzleFlashLight;
-        [SerializeField] private float recoilDistance = 0.08f;
-        [SerializeField] private float recoilAngle = 12.0f;
-        [SerializeField] private float recoilRecoverySpeed = 14.0f;
+        [SerializeField] private float recoilRecoverySpeed = 16.0f;
+
+        [Header("Legacy / Compatibility Field")]
+        [SerializeField] private Transform weaponTransform;
 
         private float cooldownTimer;
         private bool isReloading;
@@ -36,10 +61,14 @@ namespace HorrorEscape.Player
         private Vector3 defaultWeaponPos;
         private Transform cameraTransform;
 
-        public int CurrentAmmo => currentAmmo;
-        public int ReserveAmmo => reserveAmmo;
-        public int MaxClipAmmo => maxClipAmmo;
+        // Public properties
+        public WeaponType CurrentWeapon => currentWeapon;
+        public bool HasUnlockedSMG => hasUnlockedSMG;
         public bool IsReloading => isReloading;
+
+        public int CurrentAmmo => currentWeapon == WeaponType.Pistol ? pistolCurrentAmmo : smgCurrentAmmo;
+        public int ReserveAmmo => currentWeapon == WeaponType.Pistol ? pistolReserveAmmo : smgReserveAmmo;
+        public int MaxClipAmmo => currentWeapon == WeaponType.Pistol ? pistolMaxClipAmmo : smgMaxClipAmmo;
 
         private void Awake()
         {
@@ -58,6 +87,8 @@ namespace HorrorEscape.Player
             {
                 muzzleFlashLight.enabled = false;
             }
+
+            ApplyWeaponVisuals();
         }
 
         private void Start()
@@ -72,8 +103,31 @@ namespace HorrorEscape.Player
                 cooldownTimer -= Time.deltaTime;
             }
 
+            // Weapon switching: [1] for Pistol, [2] for SMG, or scroll wheel
+            if (!isReloading)
+            {
+                if (Input.GetKeyDown(KeyCode.Alpha1) && currentWeapon != WeaponType.Pistol)
+                {
+                    SwitchWeapon(WeaponType.Pistol);
+                }
+                else if (Input.GetKeyDown(KeyCode.Alpha2) && hasUnlockedSMG && currentWeapon != WeaponType.SubmachineGun)
+                {
+                    SwitchWeapon(WeaponType.SubmachineGun);
+                }
+
+                float scroll = Input.GetAxis("Mouse ScrollWheel");
+                if (hasUnlockedSMG && Mathf.Abs(scroll) > 0.02f)
+                {
+                    WeaponType next = currentWeapon == WeaponType.Pistol ? WeaponType.SubmachineGun : WeaponType.Pistol;
+                    SwitchWeapon(next);
+                }
+            }
+
             // Left Mouse Button: Fire
-            if (Input.GetMouseButtonDown(0) && cooldownTimer <= 0f && !isReloading)
+            // SMG supports full-auto (holding mouse button), Pistol is semi-auto (GetMouseButtonDown)
+            bool fireRequested = currentWeapon == WeaponType.SubmachineGun ? Input.GetMouseButton(0) : Input.GetMouseButtonDown(0);
+
+            if (fireRequested && cooldownTimer <= 0f && !isReloading)
             {
                 if (Cursor.lockState == CursorLockMode.Locked && Time.timeScale > 0.01f)
                 {
@@ -82,39 +136,100 @@ namespace HorrorEscape.Player
             }
 
             // R: Reload
-            if (Input.GetKeyDown(KeyCode.R) && !isReloading && currentAmmo < maxClipAmmo && reserveAmmo > 0)
+            if (Input.GetKeyDown(KeyCode.R) && !isReloading && CurrentAmmo < MaxClipAmmo && ReserveAmmo > 0)
             {
                 StartCoroutine(ReloadRoutine());
             }
         }
 
+        public void SwitchWeapon(WeaponType newWeapon)
+        {
+            if (newWeapon == WeaponType.SubmachineGun && !hasUnlockedSMG) return;
+            if (isReloading) return;
+
+            currentWeapon = newWeapon;
+            ApplyWeaponVisuals();
+            UpdateHUDAmmo();
+
+            if (AudioManager.Instance != null && AudioManager.Instance.itemPickupClip != null)
+            {
+                AudioManager.Instance.Play2D(AudioManager.Instance.itemPickupClip, 0.6f, 1.4f);
+            }
+
+            if (HUDManager.Instance != null)
+            {
+                string name = currentWeapon == WeaponType.Pistol ? "9mm Army Pistol" : "Tactical SMG";
+                HUDManager.Instance.ShowNotification($"Equipped: {name}");
+            }
+        }
+
+        public void UnlockSMG(int startingAmmo = 20, int startingReserve = 20)
+        {
+            hasUnlockedSMG = true;
+            smgCurrentAmmo = Mathf.Max(smgCurrentAmmo, startingAmmo);
+            smgReserveAmmo = Mathf.Max(smgReserveAmmo, startingReserve);
+            SwitchWeapon(WeaponType.SubmachineGun);
+
+            if (HUDManager.Instance != null)
+            {
+                HUDManager.Instance.ShowNotification("NEW WEAPON ACQUIRED: Tactical Submachine Gun! Press [1] / [2] to switch.");
+            }
+        }
+
+        private void ApplyWeaponVisuals()
+        {
+            if (pistolObject != null)
+            {
+                pistolObject.SetActive(currentWeapon == WeaponType.Pistol);
+            }
+            if (smgObject != null)
+            {
+                smgObject.SetActive(currentWeapon == WeaponType.SubmachineGun && hasUnlockedSMG);
+            }
+        }
+
         public void Fire()
         {
-            if (currentAmmo <= 0)
+            int current = CurrentAmmo;
+            int reserve = ReserveAmmo;
+
+            if (current <= 0)
             {
                 // Dry fire click
                 PlayDryFireSound();
-                if (HUDManager.Instance != null)
+                if (HUDManager.Instance != null && Input.GetMouseButtonDown(0))
                 {
-                    HUDManager.Instance.ShowNotification("OUT OF AMMO! Press [R] to reload if you have ammo.");
+                    HUDManager.Instance.ShowNotification("OUT OF AMMO! Press [R] to reload.");
                 }
 
-                if (reserveAmmo > 0 && !isReloading)
+                if (reserve > 0 && !isReloading)
                 {
                     StartCoroutine(ReloadRoutine());
                 }
                 return;
             }
 
-            currentAmmo--;
-            cooldownTimer = fireCooldown;
+            // Consume ammo
+            if (currentWeapon == WeaponType.Pistol)
+            {
+                pistolCurrentAmmo--;
+                cooldownTimer = pistolFireCooldown;
+            }
+            else
+            {
+                smgCurrentAmmo--;
+                cooldownTimer = smgFireCooldown;
+            }
+
             UpdateHUDAmmo();
 
             // Play gunshot sound
             PlayGunshotSound();
 
             // Recoil & Muzzle flash
-            StartCoroutine(AnimateRecoilAndMuzzleFlash());
+            float recoilDist = currentWeapon == WeaponType.Pistol ? pistolRecoilDistance : smgRecoilDistance;
+            float recoilAng = currentWeapon == WeaponType.Pistol ? pistolRecoilAngle : smgRecoilAngle;
+            StartCoroutine(AnimateRecoilAndMuzzleFlash(recoilDist, recoilAng));
 
             // Raycast forward from camera center
             if (cameraTransform == null && Camera.main != null)
@@ -124,14 +239,16 @@ namespace HorrorEscape.Player
 
             if (cameraTransform != null)
             {
+                float range = currentWeapon == WeaponType.Pistol ? pistolRange : smgRange;
+                float dmg = currentWeapon == WeaponType.Pistol ? pistolDamage : smgDamage;
+
                 Ray ray = new Ray(cameraTransform.position, cameraTransform.forward);
-                if (Physics.SphereCast(ray, 0.2f, out RaycastHit hit, gunRange, hitLayers, QueryTriggerInteraction.Ignore))
+                if (Physics.SphereCast(ray, 0.18f, out RaycastHit hit, range, hitLayers, QueryTriggerInteraction.Ignore))
                 {
-                    // Check if hit the Stalker AI
                     StalkerAI enemy = hit.collider.GetComponentInParent<StalkerAI>();
                     if (enemy != null)
                     {
-                        enemy.TakeDamage(gunDamage, cameraTransform.forward);
+                        enemy.TakeDamage(dmg, cameraTransform.forward);
                         PlayHitSound(hit.point, true);
                     }
                     else
@@ -148,6 +265,8 @@ namespace HorrorEscape.Player
         private IEnumerator ReloadRoutine()
         {
             isReloading = true;
+            float time = currentWeapon == WeaponType.Pistol ? pistolReloadTime : smgReloadTime;
+
             if (HUDManager.Instance != null)
             {
                 HUDManager.Instance.ShowNotification("Reloading...");
@@ -158,12 +277,12 @@ namespace HorrorEscape.Player
                 AudioManager.Instance.Play2D(AudioManager.Instance.reloadClip, 0.8f);
             }
 
-            // Tilt gun down during reload
+            // Tilt weapon down during reload
             if (weaponTransform != null)
             {
                 Quaternion reloadRot = defaultWeaponRot * Quaternion.Euler(20f, -10f, -15f);
                 float elapsed = 0f;
-                while (elapsed < reloadTime)
+                while (elapsed < time)
                 {
                     elapsed += Time.deltaTime;
                     weaponTransform.localRotation = Quaternion.Slerp(weaponTransform.localRotation, reloadRot, Time.deltaTime * 6f);
@@ -174,26 +293,44 @@ namespace HorrorEscape.Player
             }
             else
             {
-                yield return new WaitForSeconds(reloadTime);
+                yield return new WaitForSeconds(time);
             }
 
-            int needed = maxClipAmmo - currentAmmo;
-            int transfer = Mathf.Min(needed, reserveAmmo);
-            currentAmmo += transfer;
-            reserveAmmo -= transfer;
+            if (currentWeapon == WeaponType.Pistol)
+            {
+                int needed = pistolMaxClipAmmo - pistolCurrentAmmo;
+                int transfer = Mathf.Min(needed, pistolReserveAmmo);
+                pistolCurrentAmmo += transfer;
+                pistolReserveAmmo -= transfer;
+            }
+            else
+            {
+                int needed = smgMaxClipAmmo - smgCurrentAmmo;
+                int transfer = Mathf.Min(needed, smgReserveAmmo);
+                smgCurrentAmmo += transfer;
+                smgReserveAmmo -= transfer;
+            }
 
             isReloading = false;
             UpdateHUDAmmo();
 
             if (HUDManager.Instance != null)
             {
-                HUDManager.Instance.ShowNotification($"Reloaded ({currentAmmo}/{maxClipAmmo})");
+                HUDManager.Instance.ShowNotification($"Reloaded ({CurrentAmmo}/{MaxClipAmmo})");
             }
         }
 
         public void AddAmmo(int amount)
         {
-            reserveAmmo += amount;
+            if (currentWeapon == WeaponType.SubmachineGun)
+            {
+                smgReserveAmmo += amount * 2; // SMG uses ammo faster, gives double count
+            }
+            else
+            {
+                pistolReserveAmmo += amount;
+            }
+
             UpdateHUDAmmo();
 
             if (AudioManager.Instance != null && AudioManager.Instance.itemPickupClip != null)
@@ -203,19 +340,34 @@ namespace HorrorEscape.Player
 
             if (HUDManager.Instance != null)
             {
-                HUDManager.Instance.ShowNotification($"Collected 9mm Ammunition (+{amount} rounds)");
+                string type = currentWeapon == WeaponType.SubmachineGun ? "SMG" : "9mm";
+                int count = currentWeapon == WeaponType.SubmachineGun ? amount * 2 : amount;
+                HUDManager.Instance.ShowNotification($"Collected {type} Ammunition (+{count} rounds)");
             }
+        }
+
+        public void AddPistolAmmo(int amount)
+        {
+            pistolReserveAmmo += amount;
+            UpdateHUDAmmo();
+        }
+
+        public void AddSMGAmmo(int amount)
+        {
+            smgReserveAmmo += amount;
+            UpdateHUDAmmo();
         }
 
         private void UpdateHUDAmmo()
         {
             if (HUDManager.Instance != null)
             {
-                HUDManager.Instance.UpdateAmmoText(currentAmmo, reserveAmmo);
+                string weaponName = currentWeapon == WeaponType.SubmachineGun ? "TACTICAL SMG" : "9MM PISTOL";
+                HUDManager.Instance.UpdateAmmoText(CurrentAmmo, ReserveAmmo, weaponName);
             }
         }
 
-        private IEnumerator AnimateRecoilAndMuzzleFlash()
+        private IEnumerator AnimateRecoilAndMuzzleFlash(float recoilDist, float recoilAng)
         {
             if (muzzleFlashLight != null)
             {
@@ -224,8 +376,8 @@ namespace HorrorEscape.Player
 
             if (weaponTransform != null)
             {
-                Quaternion kickRot = defaultWeaponRot * Quaternion.Euler(-recoilAngle, Random.Range(-2f, 2f), Random.Range(-3f, 3f));
-                Vector3 kickPos = defaultWeaponPos - new Vector3(0f, 0f, recoilDistance);
+                Quaternion kickRot = defaultWeaponRot * Quaternion.Euler(-recoilAng, Random.Range(-2f, 2f), Random.Range(-3f, 3f));
+                Vector3 kickPos = defaultWeaponPos - new Vector3(0f, 0f, recoilDist);
 
                 weaponTransform.localRotation = kickRot;
                 weaponTransform.localPosition = kickPos;
@@ -257,7 +409,8 @@ namespace HorrorEscape.Player
         {
             if (AudioManager.Instance != null && AudioManager.Instance.gunshotClip != null)
             {
-                AudioManager.Instance.Play2D(AudioManager.Instance.gunshotClip, 0.95f, Random.Range(0.96f, 1.04f));
+                float pitch = currentWeapon == WeaponType.SubmachineGun ? Random.Range(1.15f, 1.25f) : Random.Range(0.96f, 1.04f);
+                AudioManager.Instance.Play2D(AudioManager.Instance.gunshotClip, 0.95f, pitch);
             }
         }
 
@@ -305,6 +458,13 @@ namespace HorrorEscape.Player
                 defaultWeaponPos = weaponTransform.localPosition;
                 defaultWeaponRot = weaponTransform.localRotation;
             }
+        }
+
+        public void SetWeaponObjects(GameObject pistol, GameObject smg)
+        {
+            pistolObject = pistol;
+            smgObject = smg;
+            ApplyWeaponVisuals();
         }
 
         public void SetMuzzleFlashLight(Light light)

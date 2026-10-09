@@ -121,6 +121,9 @@ namespace HorrorEscape.Editor
             EditorSceneManager.SaveScene(scene);
 
             Debug.Log("[PSXHorrorUISetup] Successfully configured PSX Horror UI in " + ScenePath);
+
+            // Also invoke Polygon Survival setup
+            PolygonSurvivalSetup.SetupPolygonSurvivalBatch();
         }
 
         private static void SetSprite(SerializedObject so, string propertyName, string assetPath)
