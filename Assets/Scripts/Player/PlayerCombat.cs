@@ -107,6 +107,14 @@ namespace HorrorEscape.Player
                 cooldownTimer -= Time.deltaTime;
             }
 
+            bool isUIBlocking = (HUDManager.Instance != null && (HUDManager.Instance.IsInventoryOpen || HUDManager.Instance.IsReadingNote || HUDManager.Instance.IsPaused)) ||
+                                (GameManager.Instance != null && (GameManager.Instance.IsGameOver || GameManager.Instance.IsVictory));
+
+            if (isUIBlocking)
+            {
+                return;
+            }
+
             // Weapon switching: [1] for Pistol, [2] for SMG, or scroll wheel
             if (!isReloading)
             {

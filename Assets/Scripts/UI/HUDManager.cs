@@ -219,6 +219,7 @@ namespace HorrorEscape.UI
         {
             FindPlayerReferences();
 
+            isInventoryOpen = false;
             if (notePanel != null) notePanel.SetActive(false);
             if (inventoryPanel != null) inventoryPanel.SetActive(false);
             if (gameOverPanel != null) gameOverPanel.SetActive(false);
@@ -227,6 +228,15 @@ namespace HorrorEscape.UI
             if (damageFlashOverlay != null) damageFlashOverlay.color = new Color(0.7f, 0.1f, 0.1f, 0f);
 
             SetCustomCursor(false);
+            if (playerController != null)
+            {
+                playerController.LockCursor(true);
+            }
+            else
+            {
+                Cursor.lockState = CursorLockMode.Locked;
+                Cursor.visible = false;
+            }
 
             if (HorrorEscape.Inventory.InventoryManager.Instance != null)
             {
@@ -305,6 +315,12 @@ namespace HorrorEscape.UI
         {
             if (isReadingNote || isPaused || (GameManager.Instance != null && (GameManager.Instance.IsGameOver || GameManager.Instance.IsVictory))) return;
 
+            // Never toggle inventory if Alt is pressed (e.g. Alt+Tab when switching applications)
+            if (Input.GetKey(KeyCode.LeftAlt) || Input.GetKey(KeyCode.RightAlt)) return;
+
+            // Guard against edge-case input fire on the first few frames of game launch
+            if (Time.frameCount < 5) return;
+
             if (Input.GetKeyDown(KeyCode.Tab) || Input.GetKeyDown(KeyCode.I))
             {
                 ToggleInventory();
@@ -316,12 +332,21 @@ namespace HorrorEscape.UI
             if (isReadingNote || isPaused) return;
 
             isInventoryOpen = !isInventoryOpen;
-            if (inventoryPanel != null) inventoryPanel.SetActive(isInventoryOpen);
+            if (inventoryPanel != null)
+            {
+                inventoryPanel.SetActive(isInventoryOpen);
+            }
 
             if (playerController != null)
             {
                 playerController.LockCursor(!isInventoryOpen);
             }
+            else
+            {
+                Cursor.lockState = isInventoryOpen ? CursorLockMode.None : CursorLockMode.Locked;
+                Cursor.visible = isInventoryOpen;
+            }
+
             SetCustomCursor(isInventoryOpen);
 
             if (isInventoryOpen)
@@ -370,7 +395,7 @@ namespace HorrorEscape.UI
             foreach (var item in items)
             {
                 var currentItem = item;
-                GameObject slotGO = new GameObject($"Slot_{currentItem.itemType}");
+                GameObject slotGO = new GameObject($"Slot_{currentItem.itemType}", typeof(RectTransform));
                 slotGO.transform.SetParent(inventorySlotsContainer, false);
 
                 // Slot Background button
@@ -387,7 +412,7 @@ namespace HorrorEscape.UI
                 btn.colors = cb;
 
                 // Item Thumbnail Icon
-                GameObject iconGO = new GameObject("Icon");
+                GameObject iconGO = new GameObject("Icon", typeof(RectTransform));
                 iconGO.transform.SetParent(slotGO.transform, false);
                 Image img = iconGO.AddComponent<Image>();
                 img.sprite = currentItem.icon != null ? currentItem.icon : psxPointerIcon;
@@ -398,7 +423,7 @@ namespace HorrorEscape.UI
                 irt.sizeDelta = new Vector2(44f, 44f);
 
                 // Item Quantity / Status text
-                GameObject textGO = new GameObject("QtyText");
+                GameObject textGO = new GameObject("QtyText", typeof(RectTransform));
                 textGO.transform.SetParent(slotGO.transform, false);
                 Text qtyText = textGO.AddComponent<Text>();
                 qtyText.font = font;
@@ -1718,10 +1743,10 @@ namespace HorrorEscape.UI
             grt.sizeDelta = new Vector2(360f, 360f);
 
             // Grid scroll / slots container
-            GameObject slotsGO = new GameObject("SlotsContainer");
+            GameObject slotsGO = new GameObject("SlotsContainer", typeof(RectTransform));
             slotsGO.transform.SetParent(gridPanel.transform, false);
             inventorySlotsContainer = slotsGO.transform;
-            RectTransform srt = slotsGO.GetComponent<RectTransform>() ?? slotsGO.AddComponent<RectTransform>();
+            RectTransform srt = slotsGO.GetComponent<RectTransform>();
             srt.anchorMin = new Vector2(0f, 0f);
             srt.anchorMax = new Vector2(1f, 1f);
             srt.anchoredPosition = Vector2.zero;

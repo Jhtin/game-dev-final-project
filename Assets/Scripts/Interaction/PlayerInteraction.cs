@@ -26,6 +26,16 @@ namespace HorrorEscape.Interaction
 
         private void Update()
         {
+            if (HUDManager.Instance != null && (HUDManager.Instance.IsInventoryOpen || HUDManager.Instance.IsReadingNote || HUDManager.Instance.IsPaused))
+            {
+                if (currentTarget != null)
+                {
+                    currentTarget = null;
+                    HUDManager.Instance.SetInteractionPrompt(string.Empty, false);
+                }
+                return;
+            }
+
             DetectInteractable();
             HandleInteractionInput();
         }

@@ -39,9 +39,17 @@ namespace HorrorEscape.Player
         [Header("Crouch Settings")]
         [SerializeField] private float standingHeight = 1.8f;
         [SerializeField] private float crouchHeight = 1.0f;
-        [SerializeField] private float standingCamY = 0.75f;
-        [SerializeField] private float crouchCamY = 0.2f;
+        [SerializeField] private float standingCamY = 1.60f;
+        [SerializeField] private float crouchCamY = 1.0f;
+        [SerializeField] private float firstPersonForwardOffset = 0.12f;
         [SerializeField] private float crouchTransitionSpeed = 8.0f;
+
+        [Header("Character Model Culling")]
+        [SerializeField] private Animator characterAnimator;
+        private Transform headBone;
+        private Vector3 originalHeadScale = Vector3.one;
+        private readonly System.Collections.Generic.List<Renderer> headAndHairRenderers = new System.Collections.Generic.List<Renderer>();
+        private bool isHeadMeshConfigured = false;
 
         [Header("Head Bobbing")]
         [SerializeField] private bool enableHeadBob = true;
@@ -74,19 +82,29 @@ namespace HorrorEscape.Player
         public float MaxStamina => maxStamina;
         public bool IsCrouching => isCrouching;
         public bool IsSprinting => isSprinting;
-        public bool IsMoving => controller.velocity.magnitude > 0.2f;
+        public bool IsMoving => controller != null && controller.velocity.magnitude > 0.2f;
+
+        public bool IsInputBlocked
+        {
+            get
+            {
+                if (HUDManager.Instance != null && (HUDManager.Instance.IsInventoryOpen || HUDManager.Instance.IsReadingNote || HUDManager.Instance.IsPaused))
+                    return true;
+                if (GameManager.Instance != null && (GameManager.Instance.IsGameOver || GameManager.Instance.IsVictory))
+                    return true;
+                return false;
+            }
+        }
 
         private void Awake()
         {
             controller = GetComponent<CharacterController>();
-            controller.height = standingHeight;
-            currentStamina = maxStamina;
-
-            if (standingCamY < 1.0f)
+            if (controller != null)
             {
-                standingCamY = 1.6f;
-                crouchCamY = 0.9f;
+                controller.height = standingHeight;
+                controller.center = new Vector3(0f, standingHeight * 0.5f, 0f);
             }
+            currentStamina = maxStamina;
 
             if (playerCamera == null && Camera.main != null)
             {
@@ -95,17 +113,36 @@ namespace HorrorEscape.Player
 
             if (playerCamera != null)
             {
+                playerCamera.localPosition = new Vector3(0f, standingCamY, firstPersonForwardOffset);
                 defaultCameraPos = playerCamera.localPosition;
+
+                Camera cam = playerCamera.GetComponent<Camera>();
+                if (cam != null)
+                {
+                    cam.nearClipPlane = 0.05f;
+                }
             }
         }
 
         private void Start()
         {
             LockCursor(true);
+            InitializeHeadCulling();
         }
 
         private void Update()
         {
+            if (IsInputBlocked)
+            {
+                if (controller != null && controller.isGrounded)
+                {
+                    moveDirection.x = 0f;
+                    moveDirection.z = 0f;
+                }
+                UpdateCharacterAnimations();
+                return;
+            }
+
             HandleMouseLook();
             HandleCrouch();
             HandlePerspectiveToggle();
@@ -116,9 +153,74 @@ namespace HorrorEscape.Player
             UpdateCharacterAnimations();
         }
 
+        private void LateUpdate()
+        {
+            ApplyFirstPersonHeadVisibility();
+        }
+
+        private void InitializeHeadCulling()
+        {
+            if (characterAnimator == null)
+            {
+                characterAnimator = GetComponentInChildren<Animator>();
+            }
+
+            if (characterAnimator != null && characterAnimator.isHuman)
+            {
+                headBone = characterAnimator.GetBoneTransform(HumanBodyBones.Head);
+                if (headBone != null)
+                {
+                    originalHeadScale = headBone.localScale;
+                }
+            }
+
+            headAndHairRenderers.Clear();
+            Renderer[] allRenderers = GetComponentsInChildren<Renderer>(true);
+            foreach (var r in allRenderers)
+            {
+                // Never cull held viewmodel items (Flashlight, Pistol, etc. attached to the camera)
+                if (playerCamera != null && r.transform.IsChildOf(playerCamera)) continue;
+
+                string n = r.gameObject.name.ToLower();
+                if (n.Contains("hair") || n.Contains("eyelash") || n.Contains("eyebrow") || n.Contains("head") || n.Contains("helmet") || n.Contains("hat") || n.Contains("glasses"))
+                {
+                    headAndHairRenderers.Add(r);
+                }
+            }
+
+            isHeadMeshConfigured = true;
+            ApplyFirstPersonHeadVisibility();
+        }
+
+        private void ApplyFirstPersonHeadVisibility()
+        {
+            if (!isHeadMeshConfigured)
+            {
+                InitializeHeadCulling();
+            }
+
+            bool hideHead = !isThirdPerson;
+
+            if (headBone != null)
+            {
+                // Collapse head bone to zero scale so face, eyes, and skull cannot clip into camera
+                headBone.localScale = hideHead ? Vector3.zero : originalHeadScale;
+            }
+
+            for (int i = 0; i < headAndHairRenderers.Count; i++)
+            {
+                var r = headAndHairRenderers[i];
+                if (r != null)
+                {
+                    // ShadowsOnly hides the mesh completely from gameplay camera while preserving shadows
+                    r.shadowCastingMode = hideHead ? UnityEngine.Rendering.ShadowCastingMode.ShadowsOnly : UnityEngine.Rendering.ShadowCastingMode.On;
+                }
+            }
+        }
+
         private void HandleMouseLook()
         {
-            if (Cursor.lockState != CursorLockMode.Locked) return;
+            if (IsInputBlocked || Cursor.lockState != CursorLockMode.Locked) return;
 
             float mouseX = Input.GetAxis("Mouse X") * mouseSensitivity;
             float mouseY = Input.GetAxis("Mouse Y") * mouseSensitivity;
@@ -138,6 +240,8 @@ namespace HorrorEscape.Player
 
         private void HandleMovement()
         {
+            if (IsInputBlocked) return;
+
             float horizontal = Input.GetAxisRaw("Horizontal");
             float vertical = Input.GetAxisRaw("Vertical");
             Vector3 inputDir = new Vector3(horizontal, 0f, vertical).normalized;
@@ -195,6 +299,7 @@ namespace HorrorEscape.Player
                 float targetCamY = isCrouching ? crouchCamY : standingCamY;
                 Vector3 camPos = playerCamera.localPosition;
                 camPos.y = Mathf.Lerp(camPos.y, targetCamY, Time.deltaTime * crouchTransitionSpeed);
+                camPos.z = firstPersonForwardOffset;
                 playerCamera.localPosition = camPos;
             }
         }
@@ -237,6 +342,7 @@ namespace HorrorEscape.Player
                 Vector3 pos = playerCamera.localPosition;
                 float baseY = isCrouching ? crouchCamY : standingCamY;
                 pos.y = baseY + bobOffset;
+                pos.z = firstPersonForwardOffset;
                 playerCamera.localPosition = pos;
             }
             else
@@ -245,6 +351,7 @@ namespace HorrorEscape.Player
                 Vector3 pos = playerCamera.localPosition;
                 float baseY = isCrouching ? crouchCamY : standingCamY;
                 pos.y = Mathf.Lerp(pos.y, baseY, Time.deltaTime * 6f);
+                pos.z = Mathf.Lerp(pos.z, firstPersonForwardOffset, Time.deltaTime * 6f);
                 playerCamera.localPosition = pos;
             }
         }
@@ -300,6 +407,7 @@ namespace HorrorEscape.Player
             if (Input.GetKeyDown(togglePerspectiveKey))
             {
                 isThirdPerson = !isThirdPerson;
+                ApplyFirstPersonHeadVisibility();
             }
 
             if (isThirdPerson)
@@ -313,10 +421,12 @@ namespace HorrorEscape.Player
             }
             else
             {
-                // In first person, smoothly return camera X and Z towards 0
+                // In first person, smoothly return camera to eye position
                 Vector3 pos = playerCamera.localPosition;
+                float baseY = isCrouching ? crouchCamY : standingCamY;
                 pos.x = Mathf.Lerp(pos.x, 0f, Time.deltaTime * 10f);
-                pos.z = Mathf.Lerp(pos.z, 0f, Time.deltaTime * 10f);
+                pos.y = Mathf.Lerp(pos.y, baseY, Time.deltaTime * crouchTransitionSpeed);
+                pos.z = Mathf.Lerp(pos.z, firstPersonForwardOffset, Time.deltaTime * 10f);
                 playerCamera.localPosition = pos;
             }
         }
@@ -347,6 +457,8 @@ namespace HorrorEscape.Player
         public void SetCharacterAnimator(Animator anim)
         {
             characterAnimator = anim;
+            isHeadMeshConfigured = false;
+            InitializeHeadCulling();
         }
     }
 }

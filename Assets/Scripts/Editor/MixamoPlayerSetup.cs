@@ -321,6 +321,7 @@ namespace HorrorEscape.Editor
             SkinnedMeshRenderer[] renderers = modelInstance.GetComponentsInChildren<SkinnedMeshRenderer>(true);
             foreach (var smr in renderers)
             {
+                Debug.Log($"[MixamoPlayerSetup] SMR: '{smr.gameObject.name}', bones: {smr.bones.Length}, rootBone: {smr.rootBone?.name}");
                 string rName = smr.gameObject.name.ToLower();
                 if (rName.Contains("hair") || rName.Contains("eyelash"))
                 {
@@ -355,7 +356,25 @@ namespace HorrorEscape.Editor
             anim.runtimeAnimatorController = controller;
             anim.applyRootMotion = false;
 
-            // Hook Animator into FirstPersonController
+            // Hook Animator and Camera into FirstPersonController
+            CharacterController cc = playerGO.GetComponent<CharacterController>();
+            if (cc != null)
+            {
+                cc.height = 1.8f;
+                cc.center = new Vector3(0f, 0.9f, 0f);
+            }
+
+            Transform camT = playerGO.transform.Find("Main Camera");
+            if (camT != null)
+            {
+                camT.localPosition = new Vector3(0f, 1.60f, 0.12f);
+                Camera camComp = camT.GetComponent<Camera>();
+                if (camComp != null)
+                {
+                    camComp.nearClipPlane = 0.05f;
+                }
+            }
+
             FirstPersonController controllerScript = playerGO.GetComponent<FirstPersonController>();
             if (controllerScript != null)
             {
