@@ -137,6 +137,8 @@ namespace HorrorEscape.Environment
         private Vector2Int exitCell;
         private List<RoomRect> rooms = new List<RoomRect>();
         private List<Vector3> lightPositions = new List<Vector3>();
+        private List<RoomRect> blackoutRooms = new List<RoomRect>();
+        private List<RoomRect> partialBlackoutRooms = new List<RoomRect>();
 
         public int MapWidth => mapWidth;
         public int MapLength => mapLength;
@@ -144,6 +146,8 @@ namespace HorrorEscape.Environment
         public Vector2Int SpawnCell => spawnCell;
         public Vector2Int ExitCell => exitCell;
         public List<RoomRect> Rooms => rooms;
+        public List<RoomRect> BlackoutRooms => blackoutRooms;
+        public List<RoomRect> PartialBlackoutRooms => partialBlackoutRooms;
         public CellType[,] Grid => grid;
 
         private void Reset()
@@ -665,6 +669,51 @@ namespace HorrorEscape.Environment
             }
 
             grid[exitCell.x, exitCell.y] = CellType.ExitChamber;
+
+            // Partition rooms into Normal, Partial Blackout, and Complete Blackout zones
+            blackoutRooms.Clear();
+            partialBlackoutRooms.Clear();
+
+            // Room 0 is Spawn Room -> Always Normal (fully lit, tutorial/orientation safe)
+            for (int r = 1; r < rooms.Count; r++)
+            {
+                // Never blackout exit room or spawn room
+                if (rooms[r].Center == exitCell || rooms[r].Center == spawnCell) continue;
+
+                // Alternate between Complete Blackout (~25% of rooms), Partial Blackout (~25% of rooms), and Normal (~50%)
+                if (r % 4 == 2)
+                {
+                    blackoutRooms.Add(rooms[r]);
+                }
+                else if (r % 4 == 0)
+                {
+                    partialBlackoutRooms.Add(rooms[r]);
+                }
+            }
+        }
+
+        public bool IsInCompleteBlackoutZone(Vector3 worldPos)
+        {
+            int cx = Mathf.FloorToInt(worldPos.x / cellSize);
+            int cz = Mathf.FloorToInt(worldPos.z / cellSize);
+            foreach (var r in blackoutRooms)
+            {
+                if (cx >= r.x - 1 && cx <= r.x + r.width && cz >= r.z - 1 && cz <= r.z + r.length)
+                    return true;
+            }
+            return false;
+        }
+
+        public bool IsInPartialBlackoutZone(Vector3 worldPos)
+        {
+            int cx = Mathf.FloorToInt(worldPos.x / cellSize);
+            int cz = Mathf.FloorToInt(worldPos.z / cellSize);
+            foreach (var r in partialBlackoutRooms)
+            {
+                if (cx >= r.x - 1 && cx <= r.x + r.width && cz >= r.z - 1 && cz <= r.z + r.length)
+                    return true;
+            }
+            return false;
         }
 
         private Vector2Int FindFirstWalkableCellNear(int startX, int startZ)
@@ -919,23 +968,29 @@ namespace HorrorEscape.Environment
             // 1. Room Centers
             foreach (var r in rooms)
             {
+                // In Complete Blackout Rooms, ceiling fixtures are present but dark/broken (no active light source)
+                bool isBlackout = blackoutRooms.Contains(r);
+                bool isPartial = partialBlackoutRooms.Contains(r);
+
                 if (r.isLarge)
                 {
-                    // 2 lights for large room
                     Vector3 l1 = new Vector3((r.x + 1f) * cellSize + cellSize * 0.5f, wallHeight - 0.15f, (r.z + 1f) * cellSize + cellSize * 0.5f);
                     Vector3 l2 = new Vector3((r.x + 2.5f) * cellSize + cellSize * 0.5f, wallHeight - 0.15f, (r.z + 2.5f) * cellSize + cellSize * 0.5f);
-                    CreateFluorescentFixture(parent, l1, lightRng);
-                    CreateFluorescentFixture(parent, l2, lightRng);
+                    CreateFluorescentFixture(parent, l1, lightRng, isBlackout, isPartial);
+                    if (!isPartial) // In partial rooms, only place 1 light instead of 2 to create dim shadows
+                    {
+                        CreateFluorescentFixture(parent, l2, lightRng, isBlackout, isPartial);
+                    }
                 }
                 else
                 {
                     Vector3 lp = new Vector3(r.Center.x * cellSize + cellSize * 0.5f, wallHeight - 0.15f, r.Center.y * cellSize + cellSize * 0.5f);
-                    CreateFluorescentFixture(parent, lp, lightRng);
+                    CreateFluorescentFixture(parent, lp, lightRng, isBlackout, isPartial);
                 }
             }
 
             // 2. Greedy coverage for all walkable corridor and hall cells:
-            // Ensure every single walkable cell has a fluorescent light within maxAllowedDist (8.0m)
+            // Ensure every single walkable cell outside blackout zones has a fluorescent light within maxAllowedDist (8.0m)
             float maxAllowedDist = Mathf.Min(lightSpacing, 8.0f);
 
             bool needsMoreLights = true;
@@ -953,6 +1008,10 @@ namespace HorrorEscape.Environment
                         if (IsWalkable(x, z))
                         {
                             Vector3 cellPos = new Vector3(x * cellSize + cellSize * 0.5f, wallHeight - 0.15f, z * cellSize + cellSize * 0.5f);
+
+                            // In Complete Blackout zones, skip active light placement completely
+                            if (IsInCompleteBlackoutZone(cellPos)) continue;
+
                             float minDist = float.MaxValue;
                             foreach (var lp in lightPositions)
                             {
@@ -971,7 +1030,8 @@ namespace HorrorEscape.Environment
 
                 if (maxDistFound > maxAllowedDist)
                 {
-                    CreateFluorescentFixture(parent, worstCellPos, lightRng);
+                    bool isPartial = IsInPartialBlackoutZone(worstCellPos);
+                    CreateFluorescentFixture(parent, worstCellPos, lightRng, false, isPartial);
                 }
                 else
                 {
@@ -980,12 +1040,12 @@ namespace HorrorEscape.Environment
             }
         }
 
-        private void CreateFluorescentFixture(GameObject parent, Vector3 pos, System.Random rng)
+        private void CreateFluorescentFixture(GameObject parent, Vector3 pos, System.Random rng, bool isBlackout = false, bool isPartial = false)
         {
             lightPositions.Add(pos);
 
             GameObject fixture = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            fixture.name = "Fluorescent_Light_Fixture";
+            fixture.name = isBlackout ? "Broken_Fluorescent_Fixture" : "Fluorescent_Light_Fixture";
             fixture.transform.SetParent(parent.transform, false);
             fixture.transform.position = new Vector3(pos.x, wallHeight - 0.04f, pos.z);
             // Rectangular fluorescent ceiling fixture box
@@ -1003,6 +1063,12 @@ namespace HorrorEscape.Environment
 #endif
             }
 
+            // In Complete Blackout zones, the bulb is dead/broken -> No Light component attached
+            if (isBlackout)
+            {
+                return;
+            }
+
             // Light Source
             GameObject lightGO = new GameObject("Light_Source");
             lightGO.transform.SetParent(fixture.transform, false);
@@ -1010,16 +1076,34 @@ namespace HorrorEscape.Environment
 
             Light lt = lightGO.AddComponent<Light>();
             lt.type = LightType.Point;
-            // Sickly yellow-green fluorescent tone
-            lt.color = new Color(1.0f, 0.98f, 0.82f);
-            lt.intensity = 1.25f;
-            lt.range = 11.0f;
-            lt.shadows = LightShadows.Soft;
 
-            // ~6% chance of flickering tube
-            if (rng.NextDouble() < 0.06)
+            if (isPartial)
             {
-                lightGO.AddComponent<FlickeringLight>();
+                // In Partial Blackout zones: weaker amber/sickly bulb, shorter range, higher chance to flicker
+                lt.color = new Color(0.92f, 0.82f, 0.58f);
+                lt.intensity = 0.55f;
+                lt.range = 7.5f;
+                lt.shadows = LightShadows.Soft;
+
+                // 40% chance of failing flickering bulb in partial blackout
+                if (rng.NextDouble() < 0.40)
+                {
+                    lightGO.AddComponent<FlickeringLight>();
+                }
+            }
+            else
+            {
+                // Normal Backrooms: sickly yellow-green fluorescent tone
+                lt.color = new Color(1.0f, 0.98f, 0.82f);
+                lt.intensity = 1.25f;
+                lt.range = 11.0f;
+                lt.shadows = LightShadows.Soft;
+
+                // ~6% chance of flickering tube
+                if (rng.NextDouble() < 0.06)
+                {
+                    lightGO.AddComponent<FlickeringLight>();
+                }
             }
         }
 

@@ -2,6 +2,7 @@ using System.Collections;
 using UnityEngine;
 using HorrorEscape.Audio;
 using HorrorEscape.Enemy;
+using HorrorEscape.Managers;
 using HorrorEscape.UI;
 
 namespace HorrorEscape.Player

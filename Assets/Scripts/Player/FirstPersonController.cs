@@ -1,5 +1,7 @@
 using UnityEngine;
 using HorrorEscape.Audio;
+using HorrorEscape.Managers;
+using HorrorEscape.UI;
 
 namespace HorrorEscape.Player
 {

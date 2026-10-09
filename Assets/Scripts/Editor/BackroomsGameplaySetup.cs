@@ -233,7 +233,7 @@ namespace HorrorEscape.Editor
             fpcSo.FindProperty("playerCamera").objectReferenceValue = cam.transform;
             fpcSo.ApplyModifiedProperties();
 
-            // Handheld 3D Flashlight
+            // Handheld 3D Flashlight Rig (Focused hotspot + wide ambient spill)
             Transform flashRoot = cam.transform.Find("Flashlight");
             if (flashRoot == null)
             {
@@ -243,18 +243,42 @@ namespace HorrorEscape.Editor
             }
             flashRoot.localPosition = new Vector3(0.24f, -0.2f, 0.35f);
 
+            // Primary Focused Beam (Hotspot)
             Light spot = flashRoot.GetComponent<Light>();
             if (spot == null) spot = flashRoot.gameObject.AddComponent<Light>();
             spot.type = LightType.Spot;
-            spot.spotAngle = 60f;
-            spot.innerSpotAngle = 40f;
-            spot.range = 22f;
-            spot.intensity = 2.5f;
-            spot.color = new Color(0.95f, 0.95f, 1.0f);
+            spot.spotAngle = 62f;
+            spot.innerSpotAngle = 26f; // Focused center hotspot with gradual natural falloff
+            spot.range = 24f;
+            spot.intensity = 3.2f;
+            spot.color = new Color(0.96f, 0.95f, 0.88f); // Warm incandescent / xenon flashlight beam
             spot.shadows = LightShadows.Hard;
+
+            // Secondary Ambient Spill / Fill Light (Soft peripheral illumination)
+            Transform fillT = flashRoot.Find("Flashlight_FillSpill");
+            Light fillLight = null;
+            if (fillT == null)
+            {
+                GameObject fillGO = new GameObject("Flashlight_FillSpill");
+                fillGO.transform.SetParent(flashRoot, false);
+                fillGO.transform.localPosition = new Vector3(0f, 0f, 0.05f);
+                fillLight = fillGO.AddComponent<Light>();
+            }
+            else
+            {
+                fillLight = fillT.GetComponent<Light>();
+            }
+            fillLight.type = LightType.Spot;
+            fillLight.spotAngle = 105f;
+            fillLight.innerSpotAngle = 55f;
+            fillLight.range = 10f;
+            fillLight.intensity = 0.45f;
+            fillLight.color = new Color(0.92f, 0.90f, 0.80f);
+            fillLight.shadows = LightShadows.None;
 
             flashlight = flashRoot.GetComponent<FlashlightController>();
             if (flashlight == null) flashlight = flashRoot.gameObject.AddComponent<FlashlightController>();
+            flashlight.SetFillLight(fillLight);
 
             // Attach 3D flashlight mesh
             for (int i = flashRoot.childCount - 1; i >= 0; i--)
@@ -453,7 +477,40 @@ namespace HorrorEscape.Editor
             Vector3 exitPos = CellWorldPos(gen.ExitCell, cs, 0f);
             emergencyExit = CreateEmergencyExitGate(propsRoot, exitPos, wallMat, ceilingMat);
 
-            // 7. Stalker Enemy (Kane Pixels Bacteria Entity in distant section)
+            // 7. Instantiate Darkness Zone Volumes for Complete and Partial Blackout Sectors
+            GameObject darknessRoot = GameObject.Find("Darkness_Zones");
+            if (darknessRoot != null) UnityEngine.Object.DestroyImmediate(darknessRoot);
+            darknessRoot = new GameObject("Darkness_Zones");
+
+            int bIndex = 1;
+            foreach (var br in gen.BlackoutRooms)
+            {
+                GameObject bZoneGO = new GameObject($"DarknessZone_Complete_{bIndex}");
+                bZoneGO.transform.SetParent(darknessRoot.transform, false);
+                Vector3 zonePos = CellWorldPos(br.Center, cs, 1.5f);
+                bZoneGO.transform.position = zonePos;
+
+                DarknessZoneVolume dVol = bZoneGO.AddComponent<DarknessZoneVolume>();
+                Vector3 zoneSize = new Vector3(br.width * cs + cs * 0.8f, 3.5f, br.length * cs + cs * 0.8f);
+                dVol.Configure(DarknessZoneType.CompleteBlackout, $"Blackout Sector 0{bIndex}", zoneSize);
+                bIndex++;
+            }
+
+            int pIndex = 1;
+            foreach (var pr in gen.PartialBlackoutRooms)
+            {
+                GameObject pZoneGO = new GameObject($"DarknessZone_Partial_{pIndex}");
+                pZoneGO.transform.SetParent(darknessRoot.transform, false);
+                Vector3 zonePos = CellWorldPos(pr.Center, cs, 1.5f);
+                pZoneGO.transform.position = zonePos;
+
+                DarknessZoneVolume dVol = pZoneGO.AddComponent<DarknessZoneVolume>();
+                Vector3 zoneSize = new Vector3(pr.width * cs + cs * 0.6f, 3.5f, pr.length * cs + cs * 0.6f);
+                dVol.Configure(DarknessZoneType.PartialBlackout, $"Dim Corridor Sector 0{pIndex}", zoneSize);
+                pIndex++;
+            }
+
+            // 8. Stalker Enemy (Kane Pixels Bacteria Entity in distant section)
             GameObject enemyRoot = GameObject.Find("Enemies");
             if (enemyRoot != null) UnityEngine.Object.DestroyImmediate(enemyRoot);
             enemyRoot = new GameObject("Enemies");

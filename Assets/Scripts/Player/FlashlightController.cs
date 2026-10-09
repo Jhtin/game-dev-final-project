@@ -11,12 +11,14 @@ namespace HorrorEscape.Player
     {
         [Header("Light Settings")]
         [SerializeField] private Light flashlightLight;
-        [SerializeField] private float baseIntensity = 2.5f;
+        [SerializeField] private Light flashlightFillLight;
+        [SerializeField] private float baseIntensity = 3.2f;
+        [SerializeField] private float fillIntensity = 0.45f;
         [SerializeField] private bool startsOn = true;
 
         [Header("Battery System")]
         [SerializeField] private float maxBattery = 100.0f;
-        [SerializeField] private float batteryDrainRate = 0.48f; // Lasts ~3.5 minutes of continuous use
+        [SerializeField] private float batteryDrainRate = 0.40f; // Lasts ~4.1 minutes of continuous usage
         [SerializeField] private float lowBatteryThreshold = 20.0f;
         private bool hasWarnedLowBattery = false;
 
@@ -93,6 +95,10 @@ namespace HorrorEscape.Player
             {
                 flashlightLight.enabled = isOn;
             }
+            if (flashlightFillLight != null)
+            {
+                flashlightFillLight.enabled = isOn;
+            }
         }
 
         private void HandleBattery()
@@ -137,6 +143,7 @@ namespace HorrorEscape.Player
             float batRatio = Mathf.Clamp01(currentBattery / maxBattery);
             // Light gradually becomes weaker when battery is low
             float weakenedIntensity = baseIntensity * Mathf.Lerp(0.35f, 1.0f, batRatio);
+            float weakenedFill = fillIntensity * Mathf.Lerp(0.25f, 1.0f, batRatio);
 
             if (isLowBattery || isParanormal)
             {
@@ -144,19 +151,35 @@ namespace HorrorEscape.Player
                 float noise = Mathf.PerlinNoise(flickerTimer, 0.0f);
 
                 float threshold = isParanormal ? (0.6f - proximityFlickerIntensity * 0.4f) : 0.48f;
-                flashlightLight.enabled = noise > threshold;
+                bool lightState = noise > threshold;
+                flashlightLight.enabled = lightState;
                 flashlightLight.intensity = weakenedIntensity;
+                if (flashlightFillLight != null)
+                {
+                    flashlightFillLight.enabled = lightState;
+                    flashlightFillLight.intensity = weakenedFill;
+                }
             }
             else
             {
                 flashlightLight.enabled = true;
                 flashlightLight.intensity = weakenedIntensity;
+                if (flashlightFillLight != null)
+                {
+                    flashlightFillLight.enabled = true;
+                    flashlightFillLight.intensity = weakenedFill;
+                }
             }
         }
 
         public void SetParanormalFlicker(float intensity)
         {
             proximityFlickerIntensity = Mathf.Clamp01(intensity);
+        }
+
+        public void SetFillLight(Light fill)
+        {
+            flashlightFillLight = fill;
         }
 
         public void Recharge(float amount)
