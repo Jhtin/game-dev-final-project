@@ -21,7 +21,9 @@ namespace HorrorEscape.Player
     {
         [Header("Weapon Selection")]
         [SerializeField] private WeaponType currentWeapon = WeaponType.Pistol;
+        [SerializeField] private bool hasUnlockedPistol = false;
         [SerializeField] private bool hasUnlockedSMG = false;
+        [SerializeField] private bool isCombatActive = false;
 
         [Header("Pistol Configuration")]
         [SerializeField] private GameObject pistolObject;
@@ -63,7 +65,9 @@ namespace HorrorEscape.Player
 
         // Public properties
         public WeaponType CurrentWeapon => currentWeapon;
+        public bool HasUnlockedPistol => hasUnlockedPistol;
         public bool HasUnlockedSMG => hasUnlockedSMG;
+        public bool IsCombatActive => isCombatActive;
         public bool IsReloading => isReloading;
 
         public int CurrentAmmo => currentWeapon == WeaponType.Pistol ? pistolCurrentAmmo : smgCurrentAmmo;
@@ -124,10 +128,13 @@ namespace HorrorEscape.Player
             }
 
             // Left Mouse Button: Fire
-            // SMG supports full-auto (holding mouse button), Pistol is semi-auto (GetMouseButtonDown)
+            // Only fire if combat is active and corresponding weapon is unlocked
+            bool canFireCurrent = (currentWeapon == WeaponType.Pistol && hasUnlockedPistol) ||
+                                  (currentWeapon == WeaponType.SubmachineGun && hasUnlockedSMG);
+
             bool fireRequested = currentWeapon == WeaponType.SubmachineGun ? Input.GetMouseButton(0) : Input.GetMouseButtonDown(0);
 
-            if (fireRequested && cooldownTimer <= 0f && !isReloading)
+            if (isCombatActive && canFireCurrent && fireRequested && cooldownTimer <= 0f && !isReloading)
             {
                 if (Cursor.lockState == CursorLockMode.Locked && Time.timeScale > 0.01f)
                 {
@@ -136,18 +143,27 @@ namespace HorrorEscape.Player
             }
 
             // R: Reload
-            if (Input.GetKeyDown(KeyCode.R) && !isReloading && CurrentAmmo < MaxClipAmmo && ReserveAmmo > 0)
+            if (isCombatActive && canFireCurrent && Input.GetKeyDown(KeyCode.R) && !isReloading && CurrentAmmo < MaxClipAmmo && ReserveAmmo > 0)
             {
                 StartCoroutine(ReloadRoutine());
             }
         }
 
+        public void SetCombatActive(bool active)
+        {
+            isCombatActive = active;
+            ApplyWeaponVisuals();
+            UpdateHUDAmmo();
+        }
+
         public void SwitchWeapon(WeaponType newWeapon)
         {
+            if (newWeapon == WeaponType.Pistol && !hasUnlockedPistol) return;
             if (newWeapon == WeaponType.SubmachineGun && !hasUnlockedSMG) return;
             if (isReloading) return;
 
             currentWeapon = newWeapon;
+            isCombatActive = true;
             ApplyWeaponVisuals();
             UpdateHUDAmmo();
 
@@ -163,9 +179,24 @@ namespace HorrorEscape.Player
             }
         }
 
+        public void UnlockPistol(int startingAmmo = 6, int startingReserve = 6)
+        {
+            hasUnlockedPistol = true;
+            isCombatActive = true;
+            pistolCurrentAmmo = Mathf.Max(pistolCurrentAmmo, startingAmmo);
+            pistolReserveAmmo = Mathf.Max(pistolReserveAmmo, startingReserve);
+            SwitchWeapon(WeaponType.Pistol);
+
+            if (HUDManager.Instance != null)
+            {
+                HUDManager.Instance.ShowNotification("NEW WEAPON ACQUIRED: 9mm Army Pistol! Emergency defense unlocked.");
+            }
+        }
+
         public void UnlockSMG(int startingAmmo = 20, int startingReserve = 20)
         {
             hasUnlockedSMG = true;
+            isCombatActive = true;
             smgCurrentAmmo = Mathf.Max(smgCurrentAmmo, startingAmmo);
             smgReserveAmmo = Mathf.Max(smgReserveAmmo, startingReserve);
             SwitchWeapon(WeaponType.SubmachineGun);
@@ -180,11 +211,11 @@ namespace HorrorEscape.Player
         {
             if (pistolObject != null)
             {
-                pistolObject.SetActive(currentWeapon == WeaponType.Pistol);
+                pistolObject.SetActive(isCombatActive && currentWeapon == WeaponType.Pistol && hasUnlockedPistol);
             }
             if (smgObject != null)
             {
-                smgObject.SetActive(currentWeapon == WeaponType.SubmachineGun && hasUnlockedSMG);
+                smgObject.SetActive(isCombatActive && currentWeapon == WeaponType.SubmachineGun && hasUnlockedSMG);
             }
         }
 
@@ -362,8 +393,15 @@ namespace HorrorEscape.Player
         {
             if (HUDManager.Instance != null)
             {
-                string weaponName = currentWeapon == WeaponType.SubmachineGun ? "TACTICAL SMG" : "9MM PISTOL";
-                HUDManager.Instance.UpdateAmmoText(CurrentAmmo, ReserveAmmo, weaponName);
+                if (!isCombatActive || (currentWeapon == WeaponType.Pistol && !hasUnlockedPistol) || (currentWeapon == WeaponType.SubmachineGun && !hasUnlockedSMG))
+                {
+                    HUDManager.Instance.UpdateAmmoText(0, 0, "UNARMED", false);
+                }
+                else
+                {
+                    string weaponName = currentWeapon == WeaponType.SubmachineGun ? "TACTICAL SMG" : "9MM PISTOL";
+                    HUDManager.Instance.UpdateAmmoText(CurrentAmmo, ReserveAmmo, weaponName, true);
+                }
             }
         }
 

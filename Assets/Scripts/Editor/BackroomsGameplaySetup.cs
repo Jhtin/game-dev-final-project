@@ -41,6 +41,7 @@ namespace HorrorEscape.Editor
         {
             EditorApplication.delayCall += () =>
             {
+                if (EditorApplication.isPlayingOrWillChangePlaymode) return;
                 if (SessionState.GetBool("Backrooms10MinSetupRan_v1", false)) return;
                 SessionState.SetBool("Backrooms10MinSetupRan_v1", true);
                 Debug.Log("[BackroomsGameplaySetup] AutoRunOnCompile triggered!");
@@ -335,6 +336,13 @@ namespace HorrorEscape.Editor
             combat.SetWeaponTransform(gunGO.transform);
             combat.SetMuzzleFlashLight(muzzleLight);
 
+            // Configure combat state: Player starts UNARMED (Must discover gun naturally in maze)
+            SerializedObject combatSo = new SerializedObject(combat);
+            combatSo.FindProperty("hasUnlockedPistol").boolValue = false;
+            combatSo.FindProperty("hasUnlockedSMG").boolValue = false;
+            combatSo.FindProperty("isCombatActive").boolValue = false;
+            combatSo.ApplyModifiedProperties();
+
             // Re-enable CharacterController
             cc.enabled = true;
         }
@@ -409,6 +417,9 @@ namespace HorrorEscape.Editor
             // Optional Almond Water & First Aid Pickups
             CreateAlmondWater(propsRoot, CellWorldPos(earlyRoom.Center, cs, 0.35f) + new Vector3(0f, 0f, -1.2f));
             CreateFirstAid(propsRoot, CellWorldPos(maintenanceRoom.Center, cs, 0.35f) + new Vector3(0f, 0f, 1.4f));
+
+            // Place Discoverable 9mm Army Pistol in Maze Exploration Room (Player does NOT start with weapon)
+            CreatePistolPickup(propsRoot, CellWorldPos(midRoom1.Center, cs, 0.35f) + new Vector3(-1.0f, 0f, -1.0f));
 
             // 4. Maintenance Keycard (Phase 3 Access Item)
             Vector3 keycardPos = CellWorldPos(keycardRoom.Center, cs, 0.45f);
@@ -592,6 +603,33 @@ namespace HorrorEscape.Editor
                 model.transform.localScale = Vector3.one * 0.8f;
                 var anim = model.GetComponent<Animator>();
                 if (anim != null) UnityEngine.Object.DestroyImmediate(anim);
+                var col = model.GetComponent<Collider>();
+                if (col != null) UnityEngine.Object.DestroyImmediate(col);
+            }
+        }
+
+        private static void CreatePistolPickup(GameObject parent, Vector3 pos)
+        {
+            GameObject root = new GameObject("Pickup_ArmyPistol");
+            root.transform.SetParent(parent.transform, false);
+            root.transform.position = pos;
+
+            BoxCollider box = root.AddComponent<BoxCollider>();
+            box.isTrigger = true;
+            box.center = new Vector3(0f, 0.15f, 0f);
+            box.size = new Vector3(0.6f, 0.4f, 0.6f);
+
+            root.AddComponent<HorrorEscape.Interaction.PistolPickup>();
+
+            const string pistolPrefabPath = "Assets/Polygon-Lite Survival Collection/Prefabs/SM_Army_Pistol.prefab";
+            GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(pistolPrefabPath);
+            if (prefab != null)
+            {
+                GameObject model = (GameObject)PrefabUtility.InstantiatePrefab(prefab, root.transform);
+                model.name = "Model_ArmyPistol";
+                model.transform.localPosition = Vector3.zero;
+                model.transform.localRotation = Quaternion.Euler(-90f, 45f, 0f);
+                model.transform.localScale = Vector3.one * 1.0f;
                 var col = model.GetComponent<Collider>();
                 if (col != null) UnityEngine.Object.DestroyImmediate(col);
             }

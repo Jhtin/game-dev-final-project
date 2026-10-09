@@ -39,6 +39,8 @@ namespace HorrorEscape.Interaction
             return "[E] Pick up Flashlight Battery";
         }
 
+        private bool isCollected = false;
+
         public void Interact(PlayerInteraction player)
         {
             Collect(player.gameObject);
@@ -54,10 +56,26 @@ namespace HorrorEscape.Interaction
 
         private void Collect(GameObject player)
         {
+            if (isCollected) return;
+            isCollected = true;
+
             FlashlightController flashlight = player.GetComponentInChildren<FlashlightController>();
             if (flashlight != null)
             {
                 flashlight.Recharge(rechargeAmount);
+            }
+
+            if (HorrorEscape.Inventory.InventoryManager.Instance != null)
+            {
+                HorrorEscape.Inventory.InventoryManager.Instance.AddItem(
+                    HorrorEscape.Inventory.ItemType.Battery,
+                    "Flashlight Battery",
+                    "High-capacity industrial dry cell. Restores searchlight power.",
+                    null,
+                    1,
+                    false,
+                    true
+                );
             }
 
             if (AudioManager.Instance != null && AudioManager.Instance.itemPickupClip != null)

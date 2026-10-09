@@ -65,6 +65,19 @@ namespace HorrorEscape.Interaction
                 combat.AddAmmo(ammoAmount);
             }
 
+            if (HorrorEscape.Inventory.InventoryManager.Instance != null)
+            {
+                HorrorEscape.Inventory.InventoryManager.Instance.AddItem(
+                    HorrorEscape.Inventory.ItemType.PistolAmmo,
+                    "9mm Ammunition",
+                    "Standard defense cartridges. Loaded into handgun magazine.",
+                    null,
+                    ammoAmount,
+                    false,
+                    true
+                );
+            }
+
             if (AudioManager.Instance != null && AudioManager.Instance.itemPickupClip != null)
             {
                 AudioManager.Instance.Play2D(AudioManager.Instance.itemPickupClip, 0.8f, 1.3f);

@@ -40,12 +40,30 @@ namespace HorrorEscape.Interaction
             return "[E] Take First Aid Kit";
         }
 
+        private bool isCollected = false;
+
         public void Interact(PlayerInteraction player)
         {
+            if (isCollected) return;
+            isCollected = true;
+
             PlayerHealth health = player.GetComponent<PlayerHealth>();
             if (health != null)
             {
                 health.Heal(healAmount);
+            }
+
+            if (HorrorEscape.Inventory.InventoryManager.Instance != null)
+            {
+                HorrorEscape.Inventory.InventoryManager.Instance.AddItem(
+                    HorrorEscape.Inventory.ItemType.FirstAid,
+                    "First Aid Kit",
+                    "Emergency sterile trauma dressings and antiseptics. Restores vital physical condition.",
+                    null,
+                    1,
+                    false,
+                    true
+                );
             }
 
             if (HUDManager.Instance != null)

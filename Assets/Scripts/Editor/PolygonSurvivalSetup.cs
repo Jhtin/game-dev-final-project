@@ -43,6 +43,7 @@ namespace HorrorEscape.Editor
         {
             EditorApplication.delayCall += () =>
             {
+                if (EditorApplication.isPlayingOrWillChangePlaymode) return;
                 var activeScene = EditorSceneManager.GetActiveScene();
                 if (activeScene.isLoaded && (activeScene.name == "HorrorEscapeLevel" || string.IsNullOrEmpty(activeScene.name)))
                 {
@@ -169,11 +170,7 @@ namespace HorrorEscape.Editor
                     pistolGO.transform.localRotation = Quaternion.Euler(0f, -90f, 0f);
                     pistolGO.transform.localScale = Vector3.one * 0.9f;
 
-                    // Strip colliders from viewmodel weapon
-                    foreach (var c in pistolGO.GetComponentsInChildren<Collider>())
-                    {
-                        Object.DestroyImmediate(c);
-                    }
+                    pistolGO.SetActive(false);
                 }
             }
 
@@ -201,16 +198,26 @@ namespace HorrorEscape.Editor
                 }
             }
 
-            // Hook up PlayerCombat
+            // Hook up PlayerCombat & ensure unarmed start
             PlayerCombat combat = player.GetComponent<PlayerCombat>();
             if (combat != null)
             {
                 combat.SetWeaponTransform(gunRoot);
                 combat.SetMuzzleFlashLight(muzzleLight);
                 combat.SetWeaponObjects(pistolGO, smgGO);
+
+                // Gun must NOT be active at start - player explores and discovers naturally
+                SerializedObject combatSo = new SerializedObject(combat);
+                combatSo.FindProperty("hasUnlockedPistol").boolValue = false;
+                combatSo.FindProperty("hasUnlockedSMG").boolValue = false;
+                combatSo.FindProperty("isCombatActive").boolValue = false;
+                combatSo.ApplyModifiedProperties();
             }
 
-            Debug.Log("[PolygonSurvivalSetup] Player weapons upgraded to authentic 3D models (Army Pistol + SMG).");
+            if (pistolGO != null) pistolGO.SetActive(false);
+            if (smgGO != null) smgGO.SetActive(false);
+
+            Debug.Log("[PolygonSurvivalSetup] Player weapons configured with authentic 3D models (Unarmed start).");
         }
 
         private static void UpgradeAmmoPickups()

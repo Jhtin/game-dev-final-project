@@ -68,6 +68,20 @@ namespace HorrorEscape.Interaction
                 combat.UnlockSMG(initialClipAmmo, initialReserveAmmo);
             }
 
+            if (HorrorEscape.Inventory.InventoryManager.Instance != null)
+            {
+                HorrorEscape.Inventory.InventoryManager.Instance.AddItem(
+                    HorrorEscape.Inventory.ItemType.SMG,
+                    "Tactical SMG",
+                    "Rapid-fire defense submachine gun. Delivers devastating emergency stopping power.",
+                    null,
+                    1,
+                    true,
+                    false
+                );
+                HorrorEscape.Inventory.InventoryManager.Instance.EquipItem(HorrorEscape.Inventory.EquipSlot.SMG);
+            }
+
             if (AudioManager.Instance != null && AudioManager.Instance.itemPickupClip != null)
             {
                 AudioManager.Instance.Play2D(AudioManager.Instance.itemPickupClip, 0.9f, 1.2f);

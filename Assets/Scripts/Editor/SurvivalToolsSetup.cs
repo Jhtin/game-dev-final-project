@@ -26,6 +26,7 @@ namespace HorrorEscape.Editor
         {
             EditorApplication.delayCall += () =>
             {
+                if (EditorApplication.isPlayingOrWillChangePlaymode) return;
                 var activeScene = EditorSceneManager.GetActiveScene();
                 if (activeScene.isLoaded && (activeScene.name == "HorrorEscapeLevel" || string.IsNullOrEmpty(activeScene.name)))
                 {
@@ -51,10 +52,16 @@ namespace HorrorEscape.Editor
             // 4. Place immersive Backrooms lore props (Walkie-Talkie, VHS Tape)
             PlaceSurvivalLoreProps();
 
-            // Mark active scene dirty & save
-            var scene = EditorSceneManager.GetActiveScene();
-            EditorSceneManager.MarkSceneDirty(scene);
-            EditorSceneManager.SaveScene(scene);
+            // Mark active scene dirty & save if not in play mode
+            if (!EditorApplication.isPlayingOrWillChangePlaymode && !UnityEngine.Application.isPlaying)
+            {
+                var scene = EditorSceneManager.GetActiveScene();
+                if (scene.isLoaded)
+                {
+                    EditorSceneManager.MarkSceneDirty(scene);
+                    EditorSceneManager.SaveScene(scene);
+                }
+            }
 
             Debug.Log("[SurvivalToolsSetup] Successfully upgraded all pickups, handheld flashlight, and survival tools in active scene!");
         }

@@ -24,6 +24,7 @@ namespace HorrorEscape.Editor
         {
             EditorApplication.delayCall += () =>
             {
+                if (EditorApplication.isPlayingOrWillChangePlaymode) return;
                 var activeScene = EditorSceneManager.GetActiveScene();
                 if (activeScene.isLoaded && (activeScene.name == "HorrorEscapeLevel" || string.IsNullOrEmpty(activeScene.name)))
                 {

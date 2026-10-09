@@ -21,6 +21,20 @@ namespace HorrorEscape.Editor
         private const string ControllerPath = "Assets/Characters/Player/PlayerAnimatorController.controller";
         private const string ScenePath = "Assets/Scenes/HorrorEscapeLevel.unity";
 
+        [InitializeOnLoadMethod]
+        private static void AutoSetupOnLoad()
+        {
+            EditorApplication.delayCall += () =>
+            {
+                if (EditorApplication.isPlayingOrWillChangePlaymode || Application.isPlaying) return;
+                var activeScene = EditorSceneManager.GetActiveScene();
+                if (activeScene.isLoaded && (activeScene.name == "HorrorEscapeLevel" || string.IsNullOrEmpty(activeScene.name)))
+                {
+                    SetupMixamoPlayerBatch();
+                }
+            };
+        }
+
         [MenuItem("Tools/Setup Mixamo Player Character & Animations")]
         public static void SetupMixamoPlayerMenu()
         {
@@ -300,6 +314,39 @@ namespace HorrorEscape.Editor
             modelInstance.transform.localRotation = Quaternion.identity;
             modelInstance.transform.localScale = Vector3.one;
 
+            // Ensure Materials are properly assigned to all renderers
+            Material bodyMat = AssetDatabase.LoadAssetAtPath<Material>("Assets/Characters/Player/Materials/Ch17_body.mat");
+            Material hairMat = AssetDatabase.LoadAssetAtPath<Material>("Assets/Characters/Player/Materials/Ch17_hair.mat");
+
+            SkinnedMeshRenderer[] renderers = modelInstance.GetComponentsInChildren<SkinnedMeshRenderer>(true);
+            foreach (var smr in renderers)
+            {
+                string rName = smr.gameObject.name.ToLower();
+                if (rName.Contains("hair") || rName.Contains("eyelash"))
+                {
+                    if (hairMat != null) smr.sharedMaterial = hairMat;
+                }
+                else
+                {
+                    if (bodyMat != null) smr.sharedMaterial = bodyMat;
+                }
+            }
+
+            // Also check standard MeshRenderers if any
+            MeshRenderer[] meshRenderers = modelInstance.GetComponentsInChildren<MeshRenderer>(true);
+            foreach (var mr in meshRenderers)
+            {
+                string rName = mr.gameObject.name.ToLower();
+                if (rName.Contains("hair") || rName.Contains("eyelash"))
+                {
+                    if (hairMat != null) mr.sharedMaterial = hairMat;
+                }
+                else
+                {
+                    if (bodyMat != null) mr.sharedMaterial = bodyMat;
+                }
+            }
+
             // Ensure Animator component
             Animator anim = modelInstance.GetComponent<Animator>();
             if (anim == null) anim = modelInstance.AddComponent<Animator>();
@@ -321,10 +368,13 @@ namespace HorrorEscape.Editor
                 }
             }
 
-            EditorSceneManager.MarkSceneDirty(scene);
-            EditorSceneManager.SaveScene(scene);
+            if (!EditorApplication.isPlayingOrWillChangePlaymode && !UnityEngine.Application.isPlaying)
+            {
+                EditorSceneManager.MarkSceneDirty(scene);
+                EditorSceneManager.SaveScene(scene);
+            }
 
-            Debug.Log("[MixamoPlayerSetup] Successfully attached Mixamo character model to Player GameObject!");
+            Debug.Log("[MixamoPlayerSetup] Successfully attached textured Mixamo character model to Player GameObject!");
         }
     }
 }

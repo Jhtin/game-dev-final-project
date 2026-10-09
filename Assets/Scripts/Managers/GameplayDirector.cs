@@ -118,8 +118,8 @@ namespace HorrorEscape.Managers
 
         private void UpdateTimelineProgression()
         {
-            // Transition to Phase 2 at 3:00 (180s)
-            if (elapsedTime >= 180f && currentPhase == GamePhase.Phase1_Explore)
+            // Transition to Phase 2 at exactly 1:00 (60s) per Level 1 design
+            if (elapsedTime >= 60f && currentPhase == GamePhase.Phase1_Explore)
             {
                 currentPhase = GamePhase.Phase2_Tension;
                 OnEnterPhase2Tension();
@@ -151,6 +151,7 @@ namespace HorrorEscape.Managers
             // Activate stalker for cautious distant patrolling
             if (stalker != null)
             {
+                stalker.gameObject.SetActive(true);
                 stalker.SetDormant(false);
             }
 
@@ -160,11 +161,16 @@ namespace HorrorEscape.Managers
                 AudioClip cue = AudioManager.Instance.HasEntityClips
                     ? AudioManager.Instance.GetRandomEntityClip()
                     : AudioManager.Instance.distantGroanClip;
-                if (cue != null) AudioManager.Instance.Play2D(cue, 0.7f);
+                if (cue != null) AudioManager.Instance.Play2D(cue, 0.75f);
             }
 
-            // Subtle momentary light flicker in facility
-            StartCoroutine(FlickerRandomFacilityLights(2, 0.8f));
+            // Distinct flickering across nearby facility lights
+            StartCoroutine(FlickerRandomFacilityLights(4, 1.5f));
+
+            if (HUDManager.Instance != null)
+            {
+                HUDManager.Instance.ShowNotification("...SOMETHING MOVED IN THE CORRIDOR...");
+            }
         }
 
         private void TriggerEnvironmentalTensionCue()

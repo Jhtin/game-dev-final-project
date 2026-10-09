@@ -107,6 +107,16 @@ namespace HorrorEscape.UI
         private bool isReadingNote = false;
         public bool IsReadingNote => isReadingNote;
 
+        [Header("Inventory Panel Modal")]
+        [SerializeField] private GameObject inventoryPanel;
+        [SerializeField] private Transform inventorySlotsContainer;
+        [SerializeField] private Text inventoryDetailTitle;
+        [SerializeField] private Text inventoryDetailDesc;
+        [SerializeField] private Text inventoryDetailStatus;
+        [SerializeField] private Image inventoryDetailIcon;
+        private bool isInventoryOpen = false;
+        public bool IsInventoryOpen => isInventoryOpen;
+
         [Header("End Game Screens")]
         [SerializeField] private GameObject gameOverPanel;
         [SerializeField] private Text gameOverTitleText;
@@ -210,12 +220,19 @@ namespace HorrorEscape.UI
             FindPlayerReferences();
 
             if (notePanel != null) notePanel.SetActive(false);
+            if (inventoryPanel != null) inventoryPanel.SetActive(false);
             if (gameOverPanel != null) gameOverPanel.SetActive(false);
             if (victoryPanel != null) victoryPanel.SetActive(false);
             if (pausePanel != null) pausePanel.SetActive(false);
             if (damageFlashOverlay != null) damageFlashOverlay.color = new Color(0.7f, 0.1f, 0.1f, 0f);
 
             SetCustomCursor(false);
+
+            if (HorrorEscape.Inventory.InventoryManager.Instance != null)
+            {
+                HorrorEscape.Inventory.InventoryManager.Instance.OnInventoryChanged += RefreshInventoryUI;
+                HorrorEscape.Inventory.InventoryManager.Instance.OnEquipChanged += (slot) => RefreshInventoryUI();
+            }
 
             int req = GameManager.Instance != null ? GameManager.Instance.RequiredObjectiveCount : 0;
             UpdateObjectiveText(0, req);
@@ -239,6 +256,7 @@ namespace HorrorEscape.UI
             UpdateECGAnimation();
             HandlePauseInput();
             HandleNoteInput();
+            HandleInventoryInput();
         }
 
         #region Hardware Cursor
@@ -264,6 +282,10 @@ namespace HorrorEscape.UI
                 {
                     CloseNote();
                 }
+                else if (isInventoryOpen)
+                {
+                    CloseInventory();
+                }
                 else
                 {
                     TogglePause();
@@ -279,9 +301,197 @@ namespace HorrorEscape.UI
             }
         }
 
+        private void HandleInventoryInput()
+        {
+            if (isReadingNote || isPaused || (GameManager.Instance != null && (GameManager.Instance.IsGameOver || GameManager.Instance.IsVictory))) return;
+
+            if (Input.GetKeyDown(KeyCode.Tab) || Input.GetKeyDown(KeyCode.I))
+            {
+                ToggleInventory();
+            }
+        }
+
+        public void ToggleInventory()
+        {
+            if (isReadingNote || isPaused) return;
+
+            isInventoryOpen = !isInventoryOpen;
+            if (inventoryPanel != null) inventoryPanel.SetActive(isInventoryOpen);
+
+            if (playerController != null)
+            {
+                playerController.LockCursor(!isInventoryOpen);
+            }
+            SetCustomCursor(isInventoryOpen);
+
+            if (isInventoryOpen)
+            {
+                RefreshInventoryUI();
+                if (AudioManager.Instance != null && AudioManager.Instance.noteOpenClip != null)
+                {
+                    AudioManager.Instance.Play2D(AudioManager.Instance.noteOpenClip, 0.7f, 1.2f);
+                }
+            }
+            else
+            {
+                if (AudioManager.Instance != null && AudioManager.Instance.flashlightClickClip != null)
+                {
+                    AudioManager.Instance.Play2D(AudioManager.Instance.flashlightClickClip, 0.6f, 1.4f);
+                }
+            }
+        }
+
+        public void OpenInventory()
+        {
+            if (!isInventoryOpen) ToggleInventory();
+        }
+
+        public void CloseInventory()
+        {
+            if (isInventoryOpen) ToggleInventory();
+        }
+
+        public void RefreshInventoryUI()
+        {
+            if (inventorySlotsContainer == null) return;
+
+            var invMgr = HorrorEscape.Inventory.InventoryManager.Instance;
+            if (invMgr == null) return;
+
+            // Clear old slot buttons
+            for (int i = inventorySlotsContainer.childCount - 1; i >= 0; i--)
+            {
+                Destroy(inventorySlotsContainer.GetChild(i).gameObject);
+            }
+
+            var items = invMgr.Items;
+            Font font = GetTerminalFont();
+
+            foreach (var item in items)
+            {
+                var currentItem = item;
+                GameObject slotGO = new GameObject($"Slot_{currentItem.itemType}");
+                slotGO.transform.SetParent(inventorySlotsContainer, false);
+
+                // Slot Background button
+                Button btn = slotGO.AddComponent<Button>();
+                Image bg = slotGO.AddComponent<Image>();
+                bg.sprite = psxButtonNormalSprite != null ? psxButtonNormalSprite : psxPanelSprite;
+                bg.type = Image.Type.Sliced;
+                bg.color = Color.white;
+
+                ColorBlock cb = btn.colors;
+                cb.normalColor = Color.white;
+                cb.highlightedColor = new Color(0.85f, 0.95f, 0.85f, 1f);
+                cb.pressedColor = new Color(0.6f, 0.75f, 0.6f, 1f);
+                btn.colors = cb;
+
+                // Item Thumbnail Icon
+                GameObject iconGO = new GameObject("Icon");
+                iconGO.transform.SetParent(slotGO.transform, false);
+                Image img = iconGO.AddComponent<Image>();
+                img.sprite = currentItem.icon != null ? currentItem.icon : psxPointerIcon;
+                img.color = ColorPaperOffWhite;
+                img.raycastTarget = false;
+                RectTransform irt = iconGO.GetComponent<RectTransform>();
+                irt.anchoredPosition = new Vector2(0f, 12f);
+                irt.sizeDelta = new Vector2(44f, 44f);
+
+                // Item Quantity / Status text
+                GameObject textGO = new GameObject("QtyText");
+                textGO.transform.SetParent(slotGO.transform, false);
+                Text qtyText = textGO.AddComponent<Text>();
+                qtyText.font = font;
+                qtyText.fontSize = 11;
+                qtyText.fontStyle = FontStyle.Bold;
+                qtyText.alignment = TextAnchor.MiddleCenter;
+                qtyText.raycastTarget = false;
+
+                bool isEquipped = (currentItem.itemType == HorrorEscape.Inventory.ItemType.Flashlight && invMgr.CurrentEquippedSlot == HorrorEscape.Inventory.EquipSlot.Flashlight) ||
+                                  (currentItem.itemType == HorrorEscape.Inventory.ItemType.Pistol && invMgr.CurrentEquippedSlot == HorrorEscape.Inventory.EquipSlot.Pistol) ||
+                                  (currentItem.itemType == HorrorEscape.Inventory.ItemType.SMG && invMgr.CurrentEquippedSlot == HorrorEscape.Inventory.EquipSlot.SMG);
+
+                if (isEquipped)
+                {
+                    qtyText.color = ColorSystemGreen;
+                    qtyText.text = "[EQUIPPED]";
+                }
+                else if (currentItem.quantity > 1)
+                {
+                    qtyText.color = ColorPaperOffWhite;
+                    qtyText.text = $"x{currentItem.quantity}";
+                }
+                else
+                {
+                    qtyText.color = ColorMutedTan;
+                    qtyText.text = currentItem.displayName.Length > 9 ? currentItem.displayName.Substring(0, 8) + ".." : currentItem.displayName;
+                }
+
+                RectTransform trt = textGO.GetComponent<RectTransform>();
+                trt.anchoredPosition = new Vector2(0f, -30f);
+                trt.sizeDelta = new Vector2(90f, 20f);
+
+                btn.onClick.AddListener(() =>
+                {
+                    SelectInventoryItem(currentItem);
+                });
+            }
+        }
+
+        public void SelectInventoryItem(HorrorEscape.Inventory.InventoryItem item)
+        {
+            if (item == null) return;
+
+            var invMgr = HorrorEscape.Inventory.InventoryManager.Instance;
+            if (invMgr == null) return;
+
+            if (inventoryDetailTitle != null) inventoryDetailTitle.text = item.displayName.ToUpper();
+            if (inventoryDetailDesc != null) inventoryDetailDesc.text = item.description;
+            if (inventoryDetailIcon != null)
+            {
+                inventoryDetailIcon.sprite = item.icon != null ? item.icon : psxPointerIcon;
+                inventoryDetailIcon.color = ColorPaperOffWhite;
+            }
+
+            // Click activates/equips or consumes the item
+            if (item.isEquippable)
+            {
+                HorrorEscape.Inventory.EquipSlot targetSlot = HorrorEscape.Inventory.EquipSlot.Flashlight;
+                if (item.itemType == HorrorEscape.Inventory.ItemType.Pistol) targetSlot = HorrorEscape.Inventory.EquipSlot.Pistol;
+                else if (item.itemType == HorrorEscape.Inventory.ItemType.SMG) targetSlot = HorrorEscape.Inventory.EquipSlot.SMG;
+                else if (item.itemType == HorrorEscape.Inventory.ItemType.Flashlight) targetSlot = HorrorEscape.Inventory.EquipSlot.Flashlight;
+
+                invMgr.EquipItem(targetSlot);
+                if (inventoryDetailStatus != null)
+                {
+                    inventoryDetailStatus.text = "EQUIPPED IN HAND";
+                    inventoryDetailStatus.color = ColorSystemGreen;
+                }
+            }
+            else if (item.isConsumable || item.itemType == HorrorEscape.Inventory.ItemType.Battery || item.itemType == HorrorEscape.Inventory.ItemType.FirstAid || item.itemType == HorrorEscape.Inventory.ItemType.PistolAmmo)
+            {
+                invMgr.UseItem(item.itemType);
+                if (inventoryDetailStatus != null)
+                {
+                    inventoryDetailStatus.text = "USED ITEM";
+                    inventoryDetailStatus.color = ColorWarningAmber;
+                }
+            }
+            else
+            {
+                if (inventoryDetailStatus != null)
+                {
+                    inventoryDetailStatus.text = $"QUANTITY: x{item.quantity}";
+                    inventoryDetailStatus.color = ColorPaperOffWhite;
+                }
+            }
+
+            RefreshInventoryUI();
+        }
+
         public void TogglePause()
         {
-            if (isReadingNote || (GameManager.Instance != null && (GameManager.Instance.IsGameOver || GameManager.Instance.IsVictory))) return;
+            if (isReadingNote || isInventoryOpen || (GameManager.Instance != null && (GameManager.Instance.IsGameOver || GameManager.Instance.IsVictory))) return;
 
             isPaused = !isPaused;
             Time.timeScale = isPaused ? 0f : 1f;
@@ -482,10 +692,25 @@ namespace HorrorEscape.UI
             }
         }
 
-        public void UpdateAmmoText(int current, int reserve, string weaponName = "9MM PISTOL")
+        public void UpdateAmmoText(int current, int reserve, string weaponName = "9MM PISTOL", bool isArmed = true)
         {
             lastKnownAmmo = current;
             lastKnownReserve = reserve;
+
+            if (!isArmed)
+            {
+                if (ammoHeaderText != null) ammoHeaderText.text = "HANDS FREE";
+                if (ammoBodyText != null)
+                {
+                    ammoBodyText.text = "UNARMED";
+                    ammoBodyText.color = ColorMutedTan;
+                }
+                if (pistolIconImage != null)
+                {
+                    pistolIconImage.color = new Color(0.58f, 0.55f, 0.46f, 0.35f);
+                }
+                return;
+            }
 
             if (ammoHeaderText != null)
             {
@@ -956,8 +1181,8 @@ namespace HorrorEscape.UI
                 SetupSlicedImage(promptRoot, psxPanelSprite, Color.white);
 
                 RectTransform prt = promptRoot.GetComponent<RectTransform>();
-                prt.anchoredPosition = new Vector2(0f, -60f);
-                prt.sizeDelta = new Vector2(210f, 48f);
+                prt.anchoredPosition = new Vector2(0f, -80f);
+                prt.sizeDelta = new Vector2(300f, 64f);
 
                 // Icon
                 GameObject pIconGO = new GameObject("PromptIcon");
@@ -970,27 +1195,27 @@ namespace HorrorEscape.UI
                 pirt.anchorMin = new Vector2(0f, 0.5f);
                 pirt.anchorMax = new Vector2(0f, 0.5f);
                 pirt.pivot = new Vector2(0f, 0.5f);
-                pirt.anchoredPosition = new Vector2(10f, 0f);
-                pirt.sizeDelta = new Vector2(22f, 22f);
+                pirt.anchoredPosition = new Vector2(14f, 0f);
+                pirt.sizeDelta = new Vector2(32f, 32f);
 
                 // Text
                 GameObject pTextGO = new GameObject("PromptText");
                 pTextGO.transform.SetParent(promptRoot.transform, false);
                 promptText = pTextGO.AddComponent<Text>();
                 promptText.font = font;
-                promptText.fontSize = 12;
+                promptText.fontSize = 17;
                 promptText.fontStyle = FontStyle.Bold;
                 promptText.alignment = TextAnchor.MiddleLeft;
                 promptText.color = ColorPaperOffWhite;
-                promptText.lineSpacing = 1.05f;
+                promptText.lineSpacing = 1.1f;
                 promptText.raycastTarget = false;
 
                 RectTransform trt = pTextGO.GetComponent<RectTransform>();
                 trt.anchorMin = new Vector2(0f, 0f);
                 trt.anchorMax = new Vector2(1f, 1f);
                 trt.pivot = new Vector2(0f, 0.5f);
-                trt.anchoredPosition = new Vector2(38f, 0f);
-                trt.sizeDelta = new Vector2(-46f, 0f);
+                trt.anchoredPosition = new Vector2(56f, 0f);
+                trt.sizeDelta = new Vector2(-68f, 0f);
             }
 
             // 5. TOP LEFT: Minimalist Objective Panel
@@ -1005,15 +1230,15 @@ namespace HorrorEscape.UI
                 prt.anchorMin = new Vector2(0f, 1f);
                 prt.anchorMax = new Vector2(0f, 1f);
                 prt.pivot = new Vector2(0f, 1f);
-                prt.anchoredPosition = new Vector2(24f, -24f);
-                prt.sizeDelta = new Vector2(350f, 56f);
+                prt.anchoredPosition = new Vector2(28f, -28f);
+                prt.sizeDelta = new Vector2(460f, 78f);
 
                 // Header Text
                 GameObject headerGO = new GameObject("ObjectiveHeader");
                 headerGO.transform.SetParent(objPanel.transform, false);
                 objectiveHeaderText = headerGO.AddComponent<Text>();
                 objectiveHeaderText.font = font;
-                objectiveHeaderText.fontSize = 11;
+                objectiveHeaderText.fontSize = 15;
                 objectiveHeaderText.fontStyle = FontStyle.Bold;
                 objectiveHeaderText.alignment = TextAnchor.UpperLeft;
                 objectiveHeaderText.color = ColorMutedTan;
@@ -1023,15 +1248,15 @@ namespace HorrorEscape.UI
                 hrt.anchorMin = new Vector2(0f, 1f);
                 hrt.anchorMax = new Vector2(1f, 1f);
                 hrt.pivot = new Vector2(0f, 1f);
-                hrt.anchoredPosition = new Vector2(12f, -8f);
-                hrt.sizeDelta = new Vector2(-24f, 16f);
+                hrt.anchoredPosition = new Vector2(16f, -10f);
+                hrt.sizeDelta = new Vector2(-32f, 20f);
 
                 // Body Text
                 GameObject bodyGO = new GameObject("ObjectiveBody");
                 bodyGO.transform.SetParent(objPanel.transform, false);
                 objectiveBodyText = bodyGO.AddComponent<Text>();
                 objectiveBodyText.font = font;
-                objectiveBodyText.fontSize = 13;
+                objectiveBodyText.fontSize = 18;
                 objectiveBodyText.fontStyle = FontStyle.Bold;
                 objectiveBodyText.alignment = TextAnchor.UpperLeft;
                 objectiveBodyText.color = ColorPaperOffWhite;
@@ -1041,8 +1266,8 @@ namespace HorrorEscape.UI
                 brt.anchorMin = new Vector2(0f, 0f);
                 brt.anchorMax = new Vector2(1f, 1f);
                 brt.pivot = new Vector2(0f, 0f);
-                brt.anchoredPosition = new Vector2(12f, 8f);
-                brt.sizeDelta = new Vector2(-24f, -26f);
+                brt.anchoredPosition = new Vector2(16f, 10f);
+                brt.sizeDelta = new Vector2(-32f, -34f);
             }
 
             // 6. TOP RIGHT: Emergency System Timer
@@ -1057,14 +1282,14 @@ namespace HorrorEscape.UI
                 prt.anchorMin = new Vector2(1f, 1f);
                 prt.anchorMax = new Vector2(1f, 1f);
                 prt.pivot = new Vector2(1f, 1f);
-                prt.anchoredPosition = new Vector2(-24f, -24f);
-                prt.sizeDelta = new Vector2(170f, 54f);
+                prt.anchoredPosition = new Vector2(-28f, -28f);
+                prt.sizeDelta = new Vector2(230f, 74f);
 
                 GameObject headerGO = new GameObject("TimerHeader");
                 headerGO.transform.SetParent(timerPanel.transform, false);
                 timerHeaderText = headerGO.AddComponent<Text>();
                 timerHeaderText.font = font;
-                timerHeaderText.fontSize = 10;
+                timerHeaderText.fontSize = 13;
                 timerHeaderText.fontStyle = FontStyle.Bold;
                 timerHeaderText.alignment = TextAnchor.UpperRight;
                 timerHeaderText.color = ColorMutedTan;
@@ -1074,14 +1299,14 @@ namespace HorrorEscape.UI
                 hrt.anchorMin = new Vector2(0f, 1f);
                 hrt.anchorMax = new Vector2(1f, 1f);
                 hrt.pivot = new Vector2(1f, 1f);
-                hrt.anchoredPosition = new Vector2(-12f, -8f);
-                hrt.sizeDelta = new Vector2(-24f, 14f);
+                hrt.anchoredPosition = new Vector2(-16f, -10f);
+                hrt.sizeDelta = new Vector2(-32f, 18f);
 
                 GameObject bodyGO = new GameObject("TimerBody");
                 bodyGO.transform.SetParent(timerPanel.transform, false);
                 timerBodyText = bodyGO.AddComponent<Text>();
                 timerBodyText.font = font;
-                timerBodyText.fontSize = 17;
+                timerBodyText.fontSize = 24;
                 timerBodyText.fontStyle = FontStyle.Bold;
                 timerBodyText.alignment = TextAnchor.MiddleRight;
                 timerBodyText.color = ColorPaperOffWhite;
@@ -1091,8 +1316,8 @@ namespace HorrorEscape.UI
                 brt.anchorMin = new Vector2(0f, 0f);
                 brt.anchorMax = new Vector2(1f, 1f);
                 brt.pivot = new Vector2(1f, 0f);
-                brt.anchoredPosition = new Vector2(-12f, 6f);
-                brt.sizeDelta = new Vector2(-24f, -22f);
+                brt.anchoredPosition = new Vector2(-16f, 8f);
+                brt.sizeDelta = new Vector2(-32f, -30f);
             }
 
             // 7. BOTTOM LEFT: PSX Horror ECG Pulse & Health Monitor
@@ -1107,8 +1332,8 @@ namespace HorrorEscape.UI
                 prt.anchorMin = new Vector2(0f, 0f);
                 prt.anchorMax = new Vector2(0f, 0f);
                 prt.pivot = new Vector2(0f, 0f);
-                prt.anchoredPosition = new Vector2(24f, 24f);
-                prt.sizeDelta = new Vector2(230f, 66f);
+                prt.anchoredPosition = new Vector2(28f, 28f);
+                prt.sizeDelta = new Vector2(310f, 86f);
 
                 // ECG Waveform Image
                 GameObject ecgGO = new GameObject("ECGWaveform");
@@ -1121,15 +1346,15 @@ namespace HorrorEscape.UI
                 ecgrt.anchorMin = new Vector2(0f, 0.5f);
                 ecgrt.anchorMax = new Vector2(0f, 0.5f);
                 ecgrt.pivot = new Vector2(0.5f, 0.5f);
-                ecgrt.anchoredPosition = new Vector2(34f, 0f);
-                ecgrt.sizeDelta = new Vector2(50f, 34f);
+                ecgrt.anchoredPosition = new Vector2(44f, 0f);
+                ecgrt.sizeDelta = new Vector2(64f, 44f);
 
                 // Condition Header
                 GameObject headerGO = new GameObject("HealthHeader");
                 headerGO.transform.SetParent(hpPanel.transform, false);
                 healthHeaderText = headerGO.AddComponent<Text>();
                 healthHeaderText.font = font;
-                healthHeaderText.fontSize = 11;
+                healthHeaderText.fontSize = 15;
                 healthHeaderText.fontStyle = FontStyle.Bold;
                 healthHeaderText.alignment = TextAnchor.UpperLeft;
                 healthHeaderText.color = ColorSystemGreen;
@@ -1139,8 +1364,8 @@ namespace HorrorEscape.UI
                 hrt.anchorMin = new Vector2(0f, 1f);
                 hrt.anchorMax = new Vector2(1f, 1f);
                 hrt.pivot = new Vector2(0f, 1f);
-                hrt.anchoredPosition = new Vector2(66f, -10f);
-                hrt.sizeDelta = new Vector2(-76f, 16f);
+                hrt.anchoredPosition = new Vector2(88f, -12f);
+                hrt.sizeDelta = new Vector2(-100f, 20f);
 
                 // Health Progress Bar Background
                 GameObject barBgGO = new GameObject("HealthBarBg");
@@ -1154,8 +1379,8 @@ namespace HorrorEscape.UI
                 bbrt.anchorMin = new Vector2(0f, 0f);
                 bbrt.anchorMax = new Vector2(1f, 0f);
                 bbrt.pivot = new Vector2(0f, 0f);
-                bbrt.anchoredPosition = new Vector2(66f, 16f);
-                bbrt.sizeDelta = new Vector2(-78f, 12f);
+                bbrt.anchoredPosition = new Vector2(88f, 20f);
+                bbrt.sizeDelta = new Vector2(-102f, 16f);
 
                 // Health Progress Bar Fill
                 GameObject barFillGO = new GameObject("HealthBarFill");
@@ -1177,7 +1402,7 @@ namespace HorrorEscape.UI
                 bodyGO.transform.SetParent(hpPanel.transform, false);
                 healthBodyText = bodyGO.AddComponent<Text>();
                 healthBodyText.font = font;
-                healthBodyText.fontSize = 10;
+                healthBodyText.fontSize = 13;
                 healthBodyText.alignment = TextAnchor.LowerRight;
                 healthBodyText.color = ColorMutedTan;
                 healthBodyText.text = "100 HP";
@@ -1186,8 +1411,8 @@ namespace HorrorEscape.UI
                 brt.anchorMin = new Vector2(0f, 0f);
                 brt.anchorMax = new Vector2(1f, 0f);
                 brt.pivot = new Vector2(1f, 0f);
-                brt.anchoredPosition = new Vector2(-12f, 4f);
-                brt.sizeDelta = new Vector2(-78f, 12f);
+                brt.anchoredPosition = new Vector2(-14f, 4f);
+                brt.sizeDelta = new Vector2(-102f, 16f);
             }
 
             // 8. BOTTOM RIGHT: Flashlight & Defense Ammo Equipment Status
@@ -1203,8 +1428,8 @@ namespace HorrorEscape.UI
                 aprt.anchorMin = new Vector2(1f, 0f);
                 aprt.anchorMax = new Vector2(1f, 0f);
                 aprt.pivot = new Vector2(1f, 0f);
-                aprt.anchoredPosition = new Vector2(-24f, 86f);
-                aprt.sizeDelta = new Vector2(210f, 52f);
+                aprt.anchoredPosition = new Vector2(-28f, 110f);
+                aprt.sizeDelta = new Vector2(290f, 72f);
 
                 // Handgun Icon
                 GameObject pistolGO = new GameObject("PistolIcon");
@@ -1217,31 +1442,31 @@ namespace HorrorEscape.UI
                 pirt.anchorMin = new Vector2(0f, 0.5f);
                 pirt.anchorMax = new Vector2(0f, 0.5f);
                 pirt.pivot = new Vector2(0f, 0.5f);
-                pirt.anchoredPosition = new Vector2(12f, 0f);
-                pirt.sizeDelta = new Vector2(34f, 34f);
+                pirt.anchoredPosition = new Vector2(16f, 0f);
+                pirt.sizeDelta = new Vector2(44f, 44f);
 
                 GameObject aHeaderGO = new GameObject("AmmoHeader");
                 aHeaderGO.transform.SetParent(ammoPanel.transform, false);
                 ammoHeaderText = aHeaderGO.AddComponent<Text>();
                 ammoHeaderText.font = font;
-                ammoHeaderText.fontSize = 10;
+                ammoHeaderText.fontSize = 13;
                 ammoHeaderText.fontStyle = FontStyle.Bold;
                 ammoHeaderText.alignment = TextAnchor.UpperRight;
                 ammoHeaderText.color = ColorMutedTan;
                 ammoHeaderText.text = "DEFENSE AMMO";
                 ammoHeaderText.raycastTarget = false;
                 RectTransform ahrt = aHeaderGO.GetComponent<RectTransform>();
-                ahrt.anchorMin = new Vector2(0f, 1f);
-                ahrt.anchorMax = new Vector2(1f, 1f);
-                ahrt.pivot = new Vector2(1f, 1f);
-                ahrt.anchoredPosition = new Vector2(-12f, -8f);
-                ahrt.sizeDelta = new Vector2(-54f, 14f);
+                hrt.anchorMin = new Vector2(0f, 1f);
+                hrt.anchorMax = new Vector2(1f, 1f);
+                hrt.pivot = new Vector2(1f, 1f);
+                ahrt.anchoredPosition = new Vector2(-16f, -10f);
+                ahrt.sizeDelta = new Vector2(-70f, 18f);
 
                 GameObject aBodyGO = new GameObject("AmmoBody");
                 aBodyGO.transform.SetParent(ammoPanel.transform, false);
                 ammoBodyText = aBodyGO.AddComponent<Text>();
                 ammoBodyText.font = font;
-                ammoBodyText.fontSize = 15;
+                ammoBodyText.fontSize = 20;
                 ammoBodyText.fontStyle = FontStyle.Bold;
                 ammoBodyText.alignment = TextAnchor.LowerRight;
                 ammoBodyText.color = ColorPaperOffWhite;
@@ -1251,8 +1476,8 @@ namespace HorrorEscape.UI
                 abrt.anchorMin = new Vector2(0f, 0f);
                 abrt.anchorMax = new Vector2(1f, 1f);
                 abrt.pivot = new Vector2(1f, 0f);
-                abrt.anchoredPosition = new Vector2(-12f, 6f);
-                abrt.sizeDelta = new Vector2(-54f, -20f);
+                abrt.anchoredPosition = new Vector2(-16f, 8f);
+                abrt.sizeDelta = new Vector2(-70f, -28f);
 
                 // Flashlight Panel
                 GameObject battPanel = new GameObject("FlashlightTerminalPanel");
@@ -1264,14 +1489,14 @@ namespace HorrorEscape.UI
                 bprt.anchorMin = new Vector2(1f, 0f);
                 bprt.anchorMax = new Vector2(1f, 0f);
                 bprt.pivot = new Vector2(1f, 0f);
-                bprt.anchoredPosition = new Vector2(-24f, 24f);
-                bprt.sizeDelta = new Vector2(210f, 54f);
+                bprt.anchoredPosition = new Vector2(-28f, 28f);
+                bprt.sizeDelta = new Vector2(290f, 72f);
 
                 GameObject bHeaderGO = new GameObject("BatteryHeader");
                 bHeaderGO.transform.SetParent(battPanel.transform, false);
                 batteryHeaderText = bHeaderGO.AddComponent<Text>();
                 batteryHeaderText.font = font;
-                batteryHeaderText.fontSize = 10;
+                batteryHeaderText.fontSize = 13;
                 batteryHeaderText.fontStyle = FontStyle.Bold;
                 batteryHeaderText.alignment = TextAnchor.UpperLeft;
                 batteryHeaderText.color = ColorMutedTan;
@@ -1281,8 +1506,8 @@ namespace HorrorEscape.UI
                 bhrt.anchorMin = new Vector2(0f, 1f);
                 bhrt.anchorMax = new Vector2(1f, 1f);
                 bhrt.pivot = new Vector2(0f, 1f);
-                bhrt.anchoredPosition = new Vector2(12f, -8f);
-                bhrt.sizeDelta = new Vector2(-24f, 14f);
+                bhrt.anchoredPosition = new Vector2(16f, -10f);
+                bhrt.sizeDelta = new Vector2(-32f, 18f);
 
                 // Battery Progress Bar Background
                 GameObject battBarBg = new GameObject("BatteryBarBg");
@@ -1296,8 +1521,8 @@ namespace HorrorEscape.UI
                 bbart.anchorMin = new Vector2(0f, 0f);
                 bbart.anchorMax = new Vector2(1f, 0f);
                 bbart.pivot = new Vector2(0f, 0f);
-                bbart.anchoredPosition = new Vector2(12f, 12f);
-                bbart.sizeDelta = new Vector2(-70f, 12f);
+                bbart.anchoredPosition = new Vector2(16f, 16f);
+                bbart.sizeDelta = new Vector2(-96f, 16f);
 
                 // Battery Progress Bar Fill
                 GameObject battBarFill = new GameObject("BatteryBarFill");
@@ -1318,7 +1543,7 @@ namespace HorrorEscape.UI
                 bBodyGO.transform.SetParent(battPanel.transform, false);
                 batteryBodyText = bBodyGO.AddComponent<Text>();
                 batteryBodyText.font = font;
-                batteryBodyText.fontSize = 12;
+                batteryBodyText.fontSize = 16;
                 batteryBodyText.fontStyle = FontStyle.Bold;
                 batteryBodyText.alignment = TextAnchor.MiddleRight;
                 batteryBodyText.color = ColorPaperOffWhite;
@@ -1328,8 +1553,8 @@ namespace HorrorEscape.UI
                 bbrt.anchorMin = new Vector2(1f, 0f);
                 bbrt.anchorMax = new Vector2(1f, 0f);
                 bbrt.pivot = new Vector2(1f, 0f);
-                bbrt.anchoredPosition = new Vector2(-12f, 10f);
-                bbrt.sizeDelta = new Vector2(50f, 16f);
+                bbrt.anchoredPosition = new Vector2(-16f, 14f);
+                bbrt.sizeDelta = new Vector2(70f, 22f);
             }
 
             // 9. SYSTEM NOTIFICATION (Center-Bottom)
@@ -1343,14 +1568,14 @@ namespace HorrorEscape.UI
                 SetupSlicedImage(notifRoot, psxPanelSprite, Color.white);
 
                 RectTransform nrt = notifRoot.GetComponent<RectTransform>();
-                nrt.anchoredPosition = new Vector2(0f, 105f);
-                nrt.sizeDelta = new Vector2(380f, 58f);
+                nrt.anchoredPosition = new Vector2(0f, 130f);
+                nrt.sizeDelta = new Vector2(480f, 70f);
 
                 GameObject textGO = new GameObject("NotifText");
                 textGO.transform.SetParent(notifRoot.transform, false);
                 notificationText = textGO.AddComponent<Text>();
                 notificationText.font = font;
-                notificationText.fontSize = 12;
+                notificationText.fontSize = 15;
                 notificationText.fontStyle = FontStyle.Bold;
                 notificationText.alignment = TextAnchor.MiddleCenter;
                 notificationText.color = ColorPaperOffWhite;
@@ -1369,19 +1594,25 @@ namespace HorrorEscape.UI
                 pausePanel = BuildPauseMenu(canvas, font);
             }
 
-            // 11. NOTE INSPECTION MODAL
+            // 11. INVENTORY PANEL MODAL
+            if (inventoryPanel == null)
+            {
+                inventoryPanel = BuildInventoryModal(canvas, font);
+            }
+
+            // 12. NOTE INSPECTION MODAL
             if (notePanel == null)
             {
                 notePanel = BuildNoteModal(canvas, font);
             }
 
-            // 12. GAME OVER PANEL
+            // 13. GAME OVER PANEL
             if (gameOverPanel == null)
             {
                 gameOverPanel = BuildGameOverScreen(canvas, font);
             }
 
-            // 13. VICTORY PANEL
+            // 14. VICTORY PANEL
             if (victoryPanel == null)
             {
                 victoryPanel = BuildVictoryScreen(canvas, font);
@@ -1432,16 +1663,151 @@ namespace HorrorEscape.UI
             footerGO.transform.SetParent(box.transform, false);
             Text footer = footerGO.AddComponent<Text>();
             footer.font = font;
-            footer.fontSize = 11;
+            footer.fontSize = 12;
             footer.alignment = TextAnchor.MiddleCenter;
             footer.color = ColorMutedTan;
-            footer.text = "WASD: NAVIGATE | F: LIGHT | LMB: DEFENSE | E: INTERACT";
+            footer.text = "WASD: MOVE | TAB: INVENTORY | 1-4: EQUIP | F: LIGHT | LMB: SHOOT | E: INTERACT";
             RectTransform frt = footerGO.GetComponent<RectTransform>();
             frt.anchoredPosition = new Vector2(0f, -145f);
-            frt.sizeDelta = new Vector2(440f, 30f);
+            frt.sizeDelta = new Vector2(460f, 30f);
 
             menuRoot.SetActive(false);
             return menuRoot;
+        }
+
+        private GameObject BuildInventoryModal(Canvas canvas, Font font)
+        {
+            GameObject invRoot = new GameObject("InventoryModalPanel");
+            invRoot.transform.SetParent(canvas.transform, false);
+
+            Image bg = invRoot.AddComponent<Image>();
+            bg.color = new Color(0.04f, 0.04f, 0.03f, 0.92f);
+            RectTransform mrt = invRoot.GetComponent<RectTransform>();
+            mrt.anchorMin = Vector2.zero;
+            mrt.anchorMax = Vector2.one;
+            mrt.sizeDelta = Vector2.zero;
+
+            // Main Window Frame (PSX Window)
+            GameObject window = new GameObject("InventoryWindow");
+            window.transform.SetParent(invRoot.transform, false);
+            SetupSlicedImage(window, psxWindowSprite, Color.white);
+            RectTransform wrt = window.GetComponent<RectTransform>();
+            wrt.anchoredPosition = Vector2.zero;
+            wrt.sizeDelta = new Vector2(720f, 480f);
+
+            // Title
+            GameObject titleGO = new GameObject("InvTitle");
+            titleGO.transform.SetParent(window.transform, false);
+            Text title = titleGO.AddComponent<Text>();
+            title.font = font;
+            title.fontSize = 17;
+            title.fontStyle = FontStyle.Bold;
+            title.alignment = TextAnchor.MiddleCenter;
+            title.color = ColorSystemGreen;
+            title.text = "SURVIVAL INVENTORY // LEVEL 0";
+            RectTransform trt = titleGO.GetComponent<RectTransform>();
+            trt.anchoredPosition = new Vector2(0f, 205f);
+            trt.sizeDelta = new Vector2(660f, 36f);
+
+            // Left Section: Item Grid Container
+            GameObject gridPanel = new GameObject("GridPanel");
+            gridPanel.transform.SetParent(window.transform, false);
+            SetupSlicedImage(gridPanel, psxPanelSprite, Color.white);
+            RectTransform grt = gridPanel.GetComponent<RectTransform>();
+            grt.anchoredPosition = new Vector2(-155f, -15f);
+            grt.sizeDelta = new Vector2(360f, 360f);
+
+            // Grid scroll / slots container
+            GameObject slotsGO = new GameObject("SlotsContainer");
+            slotsGO.transform.SetParent(gridPanel.transform, false);
+            inventorySlotsContainer = slotsGO.transform;
+            RectTransform srt = slotsGO.GetComponent<RectTransform>() ?? slotsGO.AddComponent<RectTransform>();
+            srt.anchorMin = new Vector2(0f, 0f);
+            srt.anchorMax = new Vector2(1f, 1f);
+            srt.anchoredPosition = Vector2.zero;
+            srt.sizeDelta = new Vector2(-20f, -20f);
+
+            GridLayoutGroup grid = slotsGO.AddComponent<GridLayoutGroup>();
+            grid.cellSize = new Vector2(100f, 95f);
+            grid.spacing = new Vector2(12f, 12f);
+            grid.childAlignment = TextAnchor.UpperLeft;
+
+            // Right Section: Item Detail & Action Panel
+            GameObject detailPanel = new GameObject("DetailPanel");
+            detailPanel.transform.SetParent(window.transform, false);
+            SetupSlicedImage(detailPanel, psxPanelSprite, Color.white);
+            RectTransform drt = detailPanel.GetComponent<RectTransform>();
+            drt.anchoredPosition = new Vector2(185f, -15f);
+            drt.sizeDelta = new Vector2(300f, 360f);
+
+            // Detail Icon
+            GameObject iconGO = new GameObject("DetailIcon");
+            iconGO.transform.SetParent(detailPanel.transform, false);
+            inventoryDetailIcon = iconGO.AddComponent<Image>();
+            inventoryDetailIcon.sprite = psxPointerIcon;
+            inventoryDetailIcon.color = ColorPaperOffWhite;
+            inventoryDetailIcon.raycastTarget = false;
+            RectTransform irt = iconGO.GetComponent<RectTransform>();
+            irt.anchoredPosition = new Vector2(0f, 95f);
+            irt.sizeDelta = new Vector2(80f, 80f);
+
+            // Detail Title
+            GameObject dTitleGO = new GameObject("DetailTitle");
+            dTitleGO.transform.SetParent(detailPanel.transform, false);
+            inventoryDetailTitle = dTitleGO.AddComponent<Text>();
+            inventoryDetailTitle.font = font;
+            inventoryDetailTitle.fontSize = 15;
+            inventoryDetailTitle.fontStyle = FontStyle.Bold;
+            inventoryDetailTitle.alignment = TextAnchor.MiddleCenter;
+            inventoryDetailTitle.color = ColorPaperOffWhite;
+            inventoryDetailTitle.text = "SELECT AN ITEM";
+            RectTransform dtrt = dTitleGO.GetComponent<RectTransform>();
+            dtrt.anchoredPosition = new Vector2(0f, 30f);
+            dtrt.sizeDelta = new Vector2(270f, 30f);
+
+            // Detail Status
+            GameObject dStatusGO = new GameObject("DetailStatus");
+            dStatusGO.transform.SetParent(detailPanel.transform, false);
+            inventoryDetailStatus = dStatusGO.AddComponent<Text>();
+            inventoryDetailStatus.font = font;
+            inventoryDetailStatus.fontSize = 13;
+            inventoryDetailStatus.fontStyle = FontStyle.Bold;
+            inventoryDetailStatus.alignment = TextAnchor.MiddleCenter;
+            inventoryDetailStatus.color = ColorSystemGreen;
+            inventoryDetailStatus.text = "";
+            RectTransform dsrt = dStatusGO.GetComponent<RectTransform>();
+            dsrt.anchoredPosition = new Vector2(0f, 2f);
+            dsrt.sizeDelta = new Vector2(270f, 24f);
+
+            // Detail Description
+            GameObject dDescGO = new GameObject("DetailDesc");
+            dDescGO.transform.SetParent(detailPanel.transform, false);
+            inventoryDetailDesc = dDescGO.AddComponent<Text>();
+            inventoryDetailDesc.font = font;
+            inventoryDetailDesc.fontSize = 12;
+            inventoryDetailDesc.lineSpacing = 1.15f;
+            inventoryDetailDesc.alignment = TextAnchor.UpperLeft;
+            inventoryDetailDesc.color = ColorMutedTan;
+            inventoryDetailDesc.text = "Click any item on the left to inspect, hold in hand, or consume.";
+            RectTransform ddrt = dDescGO.GetComponent<RectTransform>();
+            ddrt.anchoredPosition = new Vector2(0f, -65f);
+            ddrt.sizeDelta = new Vector2(260f, 90f);
+
+            // Bottom Footer
+            GameObject footerGO = new GameObject("InvFooter");
+            footerGO.transform.SetParent(window.transform, false);
+            Text footer = footerGO.AddComponent<Text>();
+            footer.font = font;
+            footer.fontSize = 12;
+            footer.alignment = TextAnchor.MiddleCenter;
+            footer.color = ColorMutedTan;
+            footer.text = "[TAB] / [I] / [ESC] CLOSE INVENTORY | [1-4] QUICK EQUIP";
+            RectTransform frt = footerGO.GetComponent<RectTransform>();
+            frt.anchoredPosition = new Vector2(0f, -215f);
+            frt.sizeDelta = new Vector2(660f, 26f);
+
+            invRoot.SetActive(false);
+            return invRoot;
         }
 
         private GameObject BuildNoteModal(Canvas canvas, Font font)
