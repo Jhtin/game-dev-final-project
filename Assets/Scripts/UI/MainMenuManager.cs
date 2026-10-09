@@ -17,6 +17,13 @@ namespace HorrorEscape.UI
         [SerializeField] private GameObject mainPanel;
         [SerializeField] private GameObject controlsPanel;
 
+        [Header("PSX Horror UI Assets")]
+        [SerializeField] private Sprite psxWindowSprite;
+        [SerializeField] private Sprite psxButtonNormalSprite;
+        [SerializeField] private Sprite psxButtonHoverSprite;
+        [SerializeField] private Sprite psxButtonPressedSprite;
+        [SerializeField] private Texture2D psxCursorTexture;
+
         [Header("Scene to Load")]
         [SerializeField] private string targetSceneName = "HorrorEscapeLevel";
 
@@ -30,6 +37,11 @@ namespace HorrorEscape.UI
             Time.timeScale = 1.0f;
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
+
+            if (psxCursorTexture != null)
+            {
+                Cursor.SetCursor(psxCursorTexture, Vector2.zero, CursorMode.Auto);
+            }
 
             if (controlsPanel != null) controlsPanel.SetActive(false);
             if (mainPanel != null) mainPanel.SetActive(true);
@@ -100,7 +112,16 @@ namespace HorrorEscape.UI
             GameObject window = new GameObject("TerminalBox");
             window.transform.SetParent(mainPanel.transform, false);
             Image wBg = window.AddComponent<Image>();
-            wBg.color = HUDManager.ColorDarkPanel;
+            if (psxWindowSprite != null)
+            {
+                wBg.sprite = psxWindowSprite;
+                wBg.type = Image.Type.Sliced;
+                wBg.color = Color.white;
+            }
+            else
+            {
+                wBg.color = HUDManager.ColorDarkPanel;
+            }
             RectTransform wrt = window.GetComponent<RectTransform>();
             wrt.anchoredPosition = Vector2.zero;
             wrt.sizeDelta = new Vector2(540f, 440f);
@@ -135,7 +156,16 @@ namespace HorrorEscape.UI
             GameObject cBox = new GameObject("ControlsBox");
             cBox.transform.SetParent(controlsPanel.transform, false);
             Image cBg = cBox.AddComponent<Image>();
-            cBg.color = HUDManager.ColorDarkPanel;
+            if (psxWindowSprite != null)
+            {
+                cBg.sprite = psxWindowSprite;
+                cBg.type = Image.Type.Sliced;
+                cBg.color = Color.white;
+            }
+            else
+            {
+                cBg.color = HUDManager.ColorDarkPanel;
+            }
             RectTransform cbrt = cBox.GetComponent<RectTransform>();
             cbrt.anchoredPosition = Vector2.zero;
             cbrt.sizeDelta = new Vector2(580f, 400f);
@@ -177,21 +207,43 @@ namespace HorrorEscape.UI
             controlsPanel.SetActive(false);
         }
 
-        private static void CreateMenuButton(GameObject parent, string name, Vector2 pos, string label, Font font, UnityAction onClick)
+        private void CreateMenuButton(GameObject parent, string name, Vector2 pos, string label, Font font, UnityAction onClick)
         {
             GameObject btnGO = new GameObject(name);
             btnGO.transform.SetParent(parent.transform, false);
 
             Image img = btnGO.AddComponent<Image>();
-            img.color = new Color(0.09f, 0.08f, 0.07f, 0.95f);
+            if (psxButtonNormalSprite != null)
+            {
+                img.sprite = psxButtonNormalSprite;
+                img.type = Image.Type.Sliced;
+                img.color = Color.white;
+            }
+            else
+            {
+                img.color = new Color(0.09f, 0.08f, 0.07f, 0.95f);
+            }
 
             Button btn = btnGO.AddComponent<Button>();
-            ColorBlock cb = btn.colors;
-            cb.normalColor = new Color(0.09f, 0.08f, 0.07f, 0.95f);
-            cb.highlightedColor = new Color(0.18f, 0.16f, 0.13f, 1f);
-            cb.pressedColor = new Color(0.24f, 0.22f, 0.18f, 1f);
-            cb.selectedColor = cb.highlightedColor;
-            btn.colors = cb;
+            if (psxButtonNormalSprite != null && psxButtonHoverSprite != null)
+            {
+                btn.transition = Selectable.Transition.SpriteSwap;
+                SpriteState ss = new SpriteState();
+                ss.highlightedSprite = psxButtonHoverSprite;
+                ss.pressedSprite = psxButtonPressedSprite != null ? psxButtonPressedSprite : psxButtonHoverSprite;
+                ss.selectedSprite = psxButtonHoverSprite;
+                btn.spriteState = ss;
+            }
+            else
+            {
+                ColorBlock cb = btn.colors;
+                cb.normalColor = new Color(0.09f, 0.08f, 0.07f, 0.95f);
+                cb.highlightedColor = new Color(0.18f, 0.16f, 0.13f, 1f);
+                cb.pressedColor = new Color(0.24f, 0.22f, 0.18f, 1f);
+                cb.selectedColor = cb.highlightedColor;
+                btn.colors = cb;
+            }
+
             btn.onClick.AddListener(onClick);
 
             RectTransform brt = btnGO.GetComponent<RectTransform>();
@@ -203,9 +255,10 @@ namespace HorrorEscape.UI
             Text t = textGO.AddComponent<Text>();
             t.font = font;
             t.fontSize = 13;
+            t.fontStyle = FontStyle.Bold;
             t.alignment = TextAnchor.MiddleCenter;
             t.color = HUDManager.ColorPaperOffWhite;
-            t.text = $"[ {label} ]";
+            t.text = label;
             t.raycastTarget = false;
             RectTransform trt = textGO.GetComponent<RectTransform>();
             trt.anchorMin = Vector2.zero;
