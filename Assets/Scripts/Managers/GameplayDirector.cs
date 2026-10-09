@@ -94,11 +94,11 @@ namespace HorrorEscape.Managers
                 HUDManager.Instance.UpdateTimer($"TIME: {GetFormattedTime()}");
             }
 
-            // Keep stalker dormant/distant during early exploration
+            // Activate stalker for patrolling and responsive tracking from the start
             if (stalker != null)
             {
                 stalker.gameObject.SetActive(true);
-                stalker.SetDormant(true);
+                stalker.SetDormant(false);
             }
         }
 

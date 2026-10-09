@@ -52,6 +52,7 @@ namespace HorrorEscape.UI
         [SerializeField] private Sprite psxProgressBgSprite;
         [SerializeField] private Sprite psxProgressFillSprite;
         [SerializeField] private Sprite psxPistolIcon;
+        public Sprite PistolIcon => psxPistolIcon;
         [SerializeField] private Sprite psxNoteIcon;
         [SerializeField] private Sprite psxKeyIcon;
         [SerializeField] private Sprite psxPointerIcon;

@@ -62,6 +62,7 @@ namespace HorrorEscape.Enemy
         [Header("Combat & Kill")]
         [SerializeField] private float killDistance = 1.8f;
         [SerializeField] private float searchDuration = 4.5f;
+        [SerializeField] private float lostSightGraceDuration = 4.0f;
 
         // Pacing & Behavioral Modifiers
         private bool isDormant = false;
@@ -76,6 +77,7 @@ namespace HorrorEscape.Enemy
         // State Tracking
         private int currentWaypointIndex;
         private float stateTimer;
+        private float lostSightTimer;
         private Vector3 lastKnownPlayerPos;
         private bool hasDetectedPlayer;
         private float soundReactionCooldown;
@@ -120,6 +122,13 @@ namespace HorrorEscape.Enemy
         private void Start()
         {
             FindPlayerReferences();
+            if (agent != null && !agent.isOnNavMesh)
+            {
+                if (NavMesh.SamplePosition(transform.position, out NavMeshHit hit, 6.0f, NavMesh.AllAreas))
+                {
+                    agent.Warp(hit.position);
+                }
+            }
             SetState(StalkerState.Patrol);
         }
 
@@ -222,8 +231,8 @@ namespace HorrorEscape.Enemy
             if (distToPlayer <= maxRange)
             {
                 float angle = Vector3.Angle(transform.forward, dirToPlayer);
-                // Also detect if player is super close behind monster (within 2m)
-                bool isVeryClose = distToPlayer < 2.5f;
+                // Also detect if player is close behind monster or around tight corridor corners (within 3.5m)
+                bool isVeryClose = distToPlayer < 3.5f;
 
                 if (angle < fieldOfViewAngle * 0.5f || isVeryClose)
                 {
@@ -232,6 +241,7 @@ namespace HorrorEscape.Enemy
                     {
                         // Direct Line of Sight!
                         lastKnownPlayerPos = playerTransform.position;
+                        lostSightTimer = lostSightGraceDuration;
                         if (currentState != StalkerState.Chase)
                         {
                             OnSpotPlayer();
@@ -241,29 +251,79 @@ namespace HorrorEscape.Enemy
                 }
             }
 
-            // If we were chasing but lost direct LOS
+            // Proximity awareness: if within 4.5m in tight corridors, monster detects player
+            if (distToPlayer < 4.5f && !playerController.IsCrouching)
+            {
+                lastKnownPlayerPos = playerTransform.position;
+                lostSightTimer = lostSightGraceDuration;
+                if (currentState != StalkerState.Chase)
+                {
+                    OnSpotPlayer();
+                    return;
+                }
+            }
+
+            // If we were chasing but lost direct LOS (e.g. player rounded a corner)
             if (currentState == StalkerState.Chase)
             {
+                lostSightTimer -= Time.deltaTime;
+                // While grace duration remains active, KEEP PURSUING relentlessly!
+                if (lostSightTimer > 0f)
+                {
+                    if (agent != null && agent.isOnNavMesh)
+                    {
+                        agent.speed = chaseSpeed;
+                        agent.isStopped = false;
+                        agent.SetDestination(playerTransform.position);
+                    }
+                    return;
+                }
+
+                // Grace duration expired: transition to search mode at last known spot
                 SetState(StalkerState.Search);
             }
         }
 
         private void OnSpotPlayer()
         {
+            lostSightTimer = lostSightGraceDuration;
             SetState(StalkerState.Chase);
             PlayEntityVocal(1.0f, AudioManager.Instance != null ? AudioManager.Instance.monsterSpottedClip : null, true);
         }
 
         public void OnHearNoise(Vector3 noiseOrigin)
         {
-            if (isDormant || isFleeing || currentState == StalkerState.Chase || currentState == StalkerState.Attack || currentState == StalkerState.Stunned) return;
+            if (isDormant || isFleeing || currentState == StalkerState.Attack || currentState == StalkerState.Stunned) return;
+
+            // If already chasing, hearing noise updates the pursuit destination and resets grace timer
+            if (currentState == StalkerState.Chase)
+            {
+                lastKnownPlayerPos = noiseOrigin;
+                lostSightTimer = Mathf.Max(lostSightTimer, 3.5f);
+                if (agent != null && agent.isOnNavMesh)
+                {
+                    agent.SetDestination(playerTransform.position);
+                }
+                return;
+            }
+
             if (soundReactionCooldown > 0f) return;
-
-            soundReactionCooldown = 3.0f;
+            soundReactionCooldown = 2.0f;
             lastKnownPlayerPos = noiseOrigin;
-            SetState(StalkerState.Investigate);
 
-            PlayEntityVocal(0.6f, AudioManager.Instance != null ? AudioManager.Instance.monsterGrowlClip : null, false);
+            float dist = Vector3.Distance(transform.position, noiseOrigin);
+            // If sprint or gunshot noise is close (< 8m), break into a full chase immediately!
+            if (dist < 8.0f)
+            {
+                lostSightTimer = lostSightGraceDuration;
+                SetState(StalkerState.Chase);
+                PlayEntityVocal(1.0f, AudioManager.Instance != null ? AudioManager.Instance.monsterSpottedClip : null, true);
+            }
+            else
+            {
+                SetState(StalkerState.Investigate);
+                PlayEntityVocal(0.6f, AudioManager.Instance != null ? AudioManager.Instance.monsterGrowlClip : null, false);
+            }
         }
 
         private void SetState(StalkerState newState)

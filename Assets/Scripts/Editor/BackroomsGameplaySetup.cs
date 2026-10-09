@@ -177,6 +177,13 @@ namespace HorrorEscape.Editor
                 GameObject go = new GameObject("GameplayDirector");
                 director = go.AddComponent<GameplayDirector>();
             }
+
+            HorrorEscape.Inventory.InventoryManager invMgr = UnityEngine.Object.FindFirstObjectByType<HorrorEscape.Inventory.InventoryManager>();
+            if (invMgr == null)
+            {
+                GameObject go = new GameObject("InventoryManager");
+                invMgr = go.AddComponent<HorrorEscape.Inventory.InventoryManager>();
+            }
         }
 
         private static void SetupPlayerRig(Vector3 spawnPos, Material darkMat, out FirstPersonController fpc, out PlayerCombat combat, out FlashlightController flashlight)
@@ -213,24 +220,35 @@ namespace HorrorEscape.Editor
             combat = playerGO.GetComponent<PlayerCombat>();
             if (combat == null) combat = playerGO.AddComponent<PlayerCombat>();
 
-            // Camera
+            // Camera positioned at natural eye height (1.68m eye height on 1.80m character)
             Camera cam = playerGO.GetComponentInChildren<Camera>();
             if (cam == null)
             {
                 GameObject camGO = new GameObject("Main Camera");
                 camGO.transform.SetParent(playerGO.transform, false);
-                camGO.transform.localPosition = new Vector3(0f, 0.75f, 0f);
+                camGO.transform.localPosition = new Vector3(0f, 1.68f, 0.12f);
                 camGO.tag = "MainCamera";
                 cam = camGO.AddComponent<Camera>();
                 cam.fieldOfView = 75f;
-                cam.nearClipPlane = 0.1f;
+                cam.nearClipPlane = 0.05f;
                 camGO.AddComponent<AudioListener>();
                 camGO.AddComponent<PlayerInteraction>();
+            }
+            else
+            {
+                cam.transform.localPosition = new Vector3(0f, 1.68f, 0.12f);
+                cam.nearClipPlane = 0.05f;
             }
 
             // Hook serialized properties on FPC
             SerializedObject fpcSo = new SerializedObject(fpc);
             fpcSo.FindProperty("playerCamera").objectReferenceValue = cam.transform;
+            var standingProp = fpcSo.FindProperty("standingCamY");
+            if (standingProp != null) standingProp.floatValue = 1.68f;
+            var crouchProp = fpcSo.FindProperty("crouchCamY");
+            if (crouchProp != null) crouchProp.floatValue = 0.95f;
+            var offsetProp = fpcSo.FindProperty("firstPersonForwardOffset");
+            if (offsetProp != null) offsetProp.floatValue = 0.12f;
             fpcSo.ApplyModifiedProperties();
 
             // Handheld 3D Flashlight Rig (Focused hotspot + wide ambient spill)
@@ -380,13 +398,24 @@ namespace HorrorEscape.Editor
             cc.enabled = true;
         }
 
+        private static void DestroyAllNamed(string name)
+        {
+            var objs = UnityEngine.Object.FindObjectsByType<GameObject>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            foreach (var go in objs)
+            {
+                if (go != null && go.name == name)
+                {
+                    UnityEngine.Object.DestroyImmediate(go);
+                }
+            }
+        }
+
         private static void SetupGameplayProgression(BackroomsLevelGenerator gen, Material wallMat, Material ceilingMat, Material darkMat,
             out PowerSwitch powerSwitch, out EscapeExit emergencyExit, out StalkerAI stalker)
         {
-            // Root container
-            GameObject propsRoot = GameObject.Find("Interactables");
-            if (propsRoot != null) UnityEngine.Object.DestroyImmediate(propsRoot);
-            propsRoot = new GameObject("Interactables");
+            // Clean up all existing root containers to prevent duplicates across setup runs
+            DestroyAllNamed("Interactables");
+            GameObject propsRoot = new GameObject("Interactables");
 
             // 1. Run BFS on Grid from SpawnCell to get shortest path cell distances
             int w = gen.MapWidth;
@@ -478,9 +507,8 @@ namespace HorrorEscape.Editor
             emergencyExit = CreateEmergencyExitGate(propsRoot, exitPos, wallMat, ceilingMat);
 
             // 7. Instantiate Darkness Zone Volumes for Complete and Partial Blackout Sectors
-            GameObject darknessRoot = GameObject.Find("Darkness_Zones");
-            if (darknessRoot != null) UnityEngine.Object.DestroyImmediate(darknessRoot);
-            darknessRoot = new GameObject("Darkness_Zones");
+            DestroyAllNamed("Darkness_Zones");
+            GameObject darknessRoot = new GameObject("Darkness_Zones");
 
             int bIndex = 1;
             foreach (var br in gen.BlackoutRooms)
@@ -511,9 +539,8 @@ namespace HorrorEscape.Editor
             }
 
             // 8. Stalker Enemy (Kane Pixels Bacteria Entity in distant section)
-            GameObject enemyRoot = GameObject.Find("Enemies");
-            if (enemyRoot != null) UnityEngine.Object.DestroyImmediate(enemyRoot);
-            enemyRoot = new GameObject("Enemies");
+            DestroyAllNamed("Enemies");
+            GameObject enemyRoot = new GameObject("Enemies");
 
             Vector3 stalkerSpawnPos = CellWorldPos(farRoom.Center, cs, 0.1f);
             stalker = CreateStalkerRig(enemyRoot, stalkerSpawnPos, darkMat);

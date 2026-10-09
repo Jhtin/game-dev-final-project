@@ -41,8 +41,8 @@ namespace HorrorEscape.Player
         [Header("Crouch Settings")]
         [SerializeField] private float standingHeight = 1.8f;
         [SerializeField] private float crouchHeight = 1.0f;
-        [SerializeField] private float standingCamY = 1.60f;
-        [SerializeField] private float crouchCamY = 1.0f;
+        [SerializeField] private float standingCamY = 1.68f;
+        [SerializeField] private float crouchCamY = 0.95f;
         [SerializeField] private float firstPersonForwardOffset = 0.12f;
         [SerializeField] private float crouchTransitionSpeed = 8.0f;
 
@@ -106,6 +106,16 @@ namespace HorrorEscape.Player
                 controller.center = new Vector3(0f, standingHeight * 0.5f, 0f);
             }
             currentStamina = maxStamina;
+
+            // Enforce natural eye-level head height (overrides legacy 0.75m waist-level serialization)
+            if (standingCamY < 1.4f)
+            {
+                standingCamY = 1.68f;
+            }
+            if (crouchCamY < 0.6f)
+            {
+                crouchCamY = 0.95f;
+            }
 
             if (playerCamera == null && Camera.main != null)
             {
@@ -172,6 +182,22 @@ namespace HorrorEscape.Player
                 if (headBone != null)
                 {
                     originalHeadScale = headBone.localScale;
+
+                    // Automatically compute natural eye level from the character's humanoid head bone
+                    float headLocalY = transform.InverseTransformPoint(headBone.position).y;
+                    if (headLocalY > 1.3f)
+                    {
+                        standingCamY = headLocalY + 0.05f; // eye socket height
+                        crouchCamY = standingCamY * 0.58f;
+                        if (playerCamera != null && !isThirdPerson)
+                        {
+                            Vector3 pos = playerCamera.localPosition;
+                            pos.y = standingCamY;
+                            pos.z = firstPersonForwardOffset;
+                            playerCamera.localPosition = pos;
+                            defaultCameraPos = pos;
+                        }
+                    }
                 }
             }
 
@@ -385,10 +411,11 @@ namespace HorrorEscape.Player
         {
             // Inform nearby enemies that a noise occurred
             Collider[] hits = Physics.OverlapSphere(origin, radius);
+            var notifiedEnemies = new System.Collections.Generic.HashSet<HorrorEscape.Enemy.StalkerAI>();
             foreach (var hit in hits)
             {
-                var stalker = hit.GetComponent<HorrorEscape.Enemy.StalkerAI>();
-                if (stalker != null)
+                var stalker = hit.GetComponentInParent<HorrorEscape.Enemy.StalkerAI>();
+                if (stalker != null && notifiedEnemies.Add(stalker))
                 {
                     stalker.OnHearNoise(origin);
                 }

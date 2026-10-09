@@ -23,7 +23,23 @@ namespace HorrorEscape.Inventory
     /// </summary>
     public class InventoryManager : MonoBehaviour
     {
-        public static InventoryManager Instance { get; private set; }
+        private static InventoryManager instance;
+        public static InventoryManager Instance
+        {
+            get
+            {
+                if (instance == null)
+                {
+                    instance = FindFirstObjectByType<InventoryManager>();
+                    if (instance == null)
+                    {
+                        GameObject go = new GameObject("InventoryManager");
+                        instance = go.AddComponent<InventoryManager>();
+                    }
+                }
+                return instance;
+            }
+        }
 
         [Header("Inventory State")]
         [SerializeField] private List<InventoryItem> items = new List<InventoryItem>();
@@ -63,12 +79,12 @@ namespace HorrorEscape.Inventory
 
         private void Awake()
         {
-            if (Instance != null && Instance != this)
+            if (instance != null && instance != this)
             {
                 Destroy(gameObject);
                 return;
             }
-            Instance = this;
+            instance = this;
 
             LoadDefaultIcons();
         }
@@ -81,6 +97,19 @@ namespace HorrorEscape.Inventory
             if (GetItem(ItemType.Flashlight) == null)
             {
                 AddItem(ItemType.Flashlight, "Heavy Flashlight", "Battery-powered handheld searchlight. Crucial for traversing dark sectors.", iconFlashlight, 1, true, false);
+            }
+
+            // Sync with PlayerCombat in case Pistol / SMG was already unlocked
+            if (playerCombat != null)
+            {
+                if (playerCombat.HasUnlockedPistol && GetItem(ItemType.Pistol) == null)
+                {
+                    AddItem(ItemType.Pistol, "9mm Army Pistol", "Compact semi-automatic sidearm. Emergency defense against entities.", iconPistol, 1, true, false);
+                }
+                if (playerCombat.HasUnlockedSMG && GetItem(ItemType.SMG) == null)
+                {
+                    AddItem(ItemType.SMG, "Tactical Submachine Gun", "Rapid-fire automatic weapon for entity defense.", iconSMG, 1, true, false);
+                }
             }
 
             EquipItem(EquipSlot.Flashlight, false);
@@ -146,16 +175,21 @@ namespace HorrorEscape.Inventory
         private void LoadDefaultIcons()
         {
             const string iconRoot = "Assets/PSXHorrorUIFree/Sprites/icons";
-            if (iconFlashlight == null) iconFlashlight = Resources.Load<Sprite>("flashlight") ?? LoadSpriteAtPath($"{iconRoot}/large/flashlight.png");
+            if (iconFlashlight == null) iconFlashlight = Resources.Load<Sprite>("flashlight") ?? LoadSpriteAtPath($"{iconRoot}/large/flashlight.png") ?? LoadSpriteAtPath($"{iconRoot}/flashlight.png");
             if (iconBattery == null) iconBattery = LoadSpriteAtPath($"{iconRoot}/flashlight.png");
-            if (iconPistol == null) iconPistol = LoadSpriteAtPath($"{iconRoot}/large/pistol.png");
-            if (iconAmmoHandgun == null) iconAmmoHandgun = LoadSpriteAtPath($"{iconRoot}/large/ammo_handgun.png");
-            if (iconSMG == null) iconSMG = LoadSpriteAtPath($"{iconRoot}/large/pistol.png");
-            if (iconFirstAid == null) iconFirstAid = LoadSpriteAtPath($"{iconRoot}/large/first_aid_kit.png");
+            if (iconPistol == null) iconPistol = LoadSpriteAtPath($"{iconRoot}/large/pistol.png") ?? LoadSpriteAtPath($"{iconRoot}/pistol.png");
+            if (iconAmmoHandgun == null) iconAmmoHandgun = LoadSpriteAtPath($"{iconRoot}/large/ammo_handgun.png") ?? LoadSpriteAtPath($"{iconRoot}/ammo_handgun.png");
+            if (iconSMG == null) iconSMG = LoadSpriteAtPath($"{iconRoot}/large/pistol.png") ?? LoadSpriteAtPath($"{iconRoot}/pistol.png");
+            if (iconFirstAid == null) iconFirstAid = LoadSpriteAtPath($"{iconRoot}/large/first_aid_kit.png") ?? LoadSpriteAtPath($"{iconRoot}/first_aid_kit.png");
             if (iconWater == null) iconWater = LoadSpriteAtPath($"{iconRoot}/herb.png");
             if (iconPills == null) iconPills = LoadSpriteAtPath($"{iconRoot}/ink_ribbon.png");
-            if (iconKeycard == null) iconKeycard = LoadSpriteAtPath($"{iconRoot}/large/key_skeleton.png");
-            if (iconNote == null) iconNote = LoadSpriteAtPath($"{iconRoot}/large/note.png");
+            if (iconKeycard == null) iconKeycard = LoadSpriteAtPath($"{iconRoot}/large/key_skeleton.png") ?? LoadSpriteAtPath($"{iconRoot}/key_skeleton.png");
+            if (iconNote == null) iconNote = LoadSpriteAtPath($"{iconRoot}/large/note.png") ?? LoadSpriteAtPath($"{iconRoot}/note.png");
+
+            if (HUDManager.Instance != null)
+            {
+                if (iconPistol == null) iconPistol = HUDManager.Instance.PistolIcon;
+            }
         }
 
         private Sprite LoadSpriteAtPath(string path)

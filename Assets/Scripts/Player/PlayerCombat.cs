@@ -196,6 +196,20 @@ namespace HorrorEscape.Player
             pistolReserveAmmo = Mathf.Max(pistolReserveAmmo, startingReserve);
             SwitchWeapon(WeaponType.Pistol);
 
+            if (HorrorEscape.Inventory.InventoryManager.Instance != null && !HorrorEscape.Inventory.InventoryManager.Instance.HasItem(HorrorEscape.Inventory.ItemType.Pistol))
+            {
+                HorrorEscape.Inventory.InventoryManager.Instance.AddItem(
+                    HorrorEscape.Inventory.ItemType.Pistol,
+                    "9mm Army Pistol",
+                    "Compact semi-automatic sidearm. Emergency defense against entities.",
+                    null,
+                    1,
+                    true,
+                    false
+                );
+                HorrorEscape.Inventory.InventoryManager.Instance.EquipItem(HorrorEscape.Inventory.EquipSlot.Pistol, false);
+            }
+
             if (HUDManager.Instance != null)
             {
                 HUDManager.Instance.ShowNotification("NEW WEAPON ACQUIRED: 9mm Army Pistol! Emergency defense unlocked.");
@@ -209,6 +223,20 @@ namespace HorrorEscape.Player
             smgCurrentAmmo = Mathf.Max(smgCurrentAmmo, startingAmmo);
             smgReserveAmmo = Mathf.Max(smgReserveAmmo, startingReserve);
             SwitchWeapon(WeaponType.SubmachineGun);
+
+            if (HorrorEscape.Inventory.InventoryManager.Instance != null && !HorrorEscape.Inventory.InventoryManager.Instance.HasItem(HorrorEscape.Inventory.ItemType.SMG))
+            {
+                HorrorEscape.Inventory.InventoryManager.Instance.AddItem(
+                    HorrorEscape.Inventory.ItemType.SMG,
+                    "Tactical Submachine Gun",
+                    "Rapid-fire automatic weapon for entity defense.",
+                    null,
+                    1,
+                    true,
+                    false
+                );
+                HorrorEscape.Inventory.InventoryManager.Instance.EquipItem(HorrorEscape.Inventory.EquipSlot.SMG, false);
+            }
 
             if (HUDManager.Instance != null)
             {
