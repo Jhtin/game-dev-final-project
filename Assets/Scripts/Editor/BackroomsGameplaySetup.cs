@@ -12,6 +12,7 @@ using HorrorEscape.Interaction;
 using HorrorEscape.Managers;
 using HorrorEscape.Player;
 using HorrorEscape.UI;
+using HorrorEscape.Inventory;
 
 namespace HorrorEscape.Editor
 {
