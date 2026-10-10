@@ -14,7 +14,7 @@ namespace HorrorEscape.Interaction
         [SerializeField] private float rechargeAmount = 40.0f;
 
         [Header("Visual Effects")]
-        [SerializeField] private bool bobAndRotate = true;
+        [SerializeField] private bool bobAndRotate = false;
         [SerializeField] private float rotateSpeed = 40.0f;
         [SerializeField] private float bobAmplitude = 0.05f;
 
@@ -23,6 +23,10 @@ namespace HorrorEscape.Interaction
         private void Start()
         {
             startPos = transform.position;
+            if (GetComponent<GroundItemPhysics>() == null)
+            {
+                gameObject.AddComponent<GroundItemPhysics>();
+            }
         }
 
         private void Update()

@@ -229,7 +229,7 @@ namespace HorrorEscape.Enemy
                 }
             }
 
-            if (blackoutAudioSource != null)
+            if (blackoutAudioSource != null && blackoutAudioSource.clip != null)
             {
                 blackoutAudioSource.pitch = Random.Range(0.6f, 0.8f);
                 blackoutAudioSource.Play();

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using HorrorEscape.Audio;
+using HorrorEscape.Interaction;
 using HorrorEscape.Player;
 using HorrorEscape.UI;
 
@@ -140,6 +141,21 @@ namespace HorrorEscape.Inventory
                 if (HasItem(ItemType.FirstAid)) EquipItem(EquipSlot.FirstAid);
                 else if (HasItem(ItemType.Battery)) EquipItem(EquipSlot.Battery);
             }
+
+            // Key [G] drops the currently held item (with realistic physics and gravity)
+            if (Input.GetKeyDown(KeyCode.G))
+            {
+                ItemType? dropType = currentEquippedSlot == EquipSlot.Pistol ? ItemType.Pistol
+                    : currentEquippedSlot == EquipSlot.SMG ? ItemType.SMG
+                    : currentEquippedSlot == EquipSlot.FirstAid ? ItemType.FirstAid
+                    : currentEquippedSlot == EquipSlot.Battery ? ItemType.Battery
+                    : (ItemType?)null;
+
+                if (dropType.HasValue)
+                {
+                    DropItem(dropType.Value, 1);
+                }
+            }
         }
 
         private void FindPlayerReferences()
@@ -156,20 +172,93 @@ namespace HorrorEscape.Inventory
                 Transform camT = Camera.main.transform;
                 if (heldFlashlightObject == null)
                 {
-                    Transform t = camT.Find("Flashlight") ?? camT.Find("HandheldFlashlight");
+                    Transform t = camT.Find("Flashlight/Model_HandheldFlashlight") ?? camT.Find("Flashlight") ?? camT.Find("HandheldFlashlight");
                     if (t != null) heldFlashlightObject = t.gameObject;
                 }
                 if (heldPistolObject == null)
                 {
-                    Transform t = camT.Find("DefenseHandgun/Model_ArmyPistol") ?? camT.Find("DefenseHandgun");
+                    Transform t = camT.Find("DefenseHandgun/Pistol_ViewModel") ?? camT.Find("DefenseHandgun/Model_ArmyPistol") ?? camT.Find("DefenseHandgun");
                     if (t != null) heldPistolObject = t.gameObject;
                 }
                 if (heldSMGObject == null)
                 {
-                    Transform t = camT.Find("DefenseHandgun/Model_TacticalSMG");
+                    Transform t = camT.Find("DefenseHandgun/SMG_ViewModel") ?? camT.Find("DefenseHandgun/Model_TacticalSMG");
                     if (t != null) heldSMGObject = t.gameObject;
                 }
             }
+        }
+
+        /// <summary>
+        /// Drops an inventory item into the game world, applying realistic gravity and floor collision physics.
+        /// </summary>
+        public bool DropItem(ItemType type, int quantity = 1)
+        {
+            InventoryItem item = GetItem(type);
+            if (item == null || item.quantity <= 0) return false;
+            if (item.itemType == ItemType.Keycard) return false; // Essential objective item cannot be dropped
+
+            if (!RemoveItem(type, quantity)) return false;
+
+            if (playerController == null) FindPlayerReferences();
+            Vector3 dropOrigin = playerController != null
+                ? playerController.transform.position + playerController.transform.forward * 0.75f + Vector3.up * 0.6f
+                : transform.position + Vector3.up * 0.6f;
+            Vector3 tossVelocity = playerController != null
+                ? playerController.transform.forward * 2.0f + Vector3.up * 1.0f
+                : Vector3.forward * 1.5f + Vector3.up * 1.0f;
+
+            GameObject dropGO = SpawnWorldPickup(type, dropOrigin);
+            if (dropGO != null)
+            {
+                GroundItemPhysics gPhysics = dropGO.GetComponent<GroundItemPhysics>() ?? dropGO.AddComponent<GroundItemPhysics>();
+                gPhysics.Drop(tossVelocity);
+            }
+
+            if (HUDManager.Instance != null)
+            {
+                HUDManager.Instance.ShowNotification($"Dropped: {item.displayName}");
+            }
+
+            return true;
+        }
+
+        private GameObject SpawnWorldPickup(ItemType type, Vector3 pos)
+        {
+            GameObject root = new GameObject($"Dropped_{type}");
+            root.transform.position = pos;
+            BoxCollider box = root.AddComponent<BoxCollider>();
+            box.isTrigger = true;
+            box.size = new Vector3(0.6f, 0.5f, 0.6f);
+
+            switch (type)
+            {
+                case ItemType.Battery:
+                    root.AddComponent<HorrorEscape.Interaction.BatteryPickup>();
+                    break;
+                case ItemType.PistolAmmo:
+                case ItemType.SMGAmmo:
+                    root.AddComponent<HorrorEscape.Interaction.AmmunitionPickup>();
+                    break;
+                case ItemType.FirstAid:
+                    root.AddComponent<HorrorEscape.Interaction.FirstAidPickup>();
+                    break;
+                case ItemType.AlmondWater:
+                    root.AddComponent<HorrorEscape.Interaction.AlmondWaterPickup>();
+                    break;
+                case ItemType.SanityPills:
+                    root.AddComponent<HorrorEscape.Interaction.SanityPillsPickup>();
+                    break;
+                case ItemType.Flashlight:
+                    root.AddComponent<HorrorEscape.Interaction.FlashlightPickup>();
+                    break;
+                case ItemType.Pistol:
+                    root.AddComponent<HorrorEscape.Interaction.PistolPickup>();
+                    break;
+                case ItemType.SMG:
+                    root.AddComponent<HorrorEscape.Interaction.SMGPickup>();
+                    break;
+            }
+            return root;
         }
 
         private void LoadDefaultIcons()

@@ -339,48 +339,48 @@ namespace HorrorEscape.Editor
             gunGO.transform.localPosition = new Vector3(0.22f, -0.22f, 0.45f);
             gunGO.transform.localRotation = Quaternion.identity;
 
-            // Receiver / Slide
-            GameObject slide = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            slide.name = "Slide";
-            slide.transform.SetParent(gunGO.transform, false);
-            slide.transform.localPosition = new Vector3(0f, 0.04f, 0.05f);
-            slide.transform.localScale = new Vector3(0.045f, 0.055f, 0.22f);
-            if (darkMat != null) slide.GetComponent<MeshRenderer>().sharedMaterial = darkMat;
-            UnityEngine.Object.DestroyImmediate(slide.GetComponent<Collider>());
+            // 1. Authentic 3D Pistol ViewModel (POLY - Lite Survival Army Pistol)
+            GameObject pistolVM = new GameObject("Pistol_ViewModel");
+            pistolVM.transform.SetParent(gunGO.transform, false);
+            pistolVM.transform.localPosition = Vector3.zero;
+            pistolVM.transform.localRotation = Quaternion.identity;
 
-            // Barrel
-            GameObject barrel = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-            barrel.name = "Barrel";
-            barrel.transform.SetParent(gunGO.transform, false);
-            barrel.transform.localPosition = new Vector3(0f, 0.04f, 0.15f);
-            barrel.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
-            barrel.transform.localScale = new Vector3(0.024f, 0.06f, 0.024f);
-            if (darkMat != null) barrel.GetComponent<MeshRenderer>().sharedMaterial = darkMat;
-            UnityEngine.Object.DestroyImmediate(barrel.GetComponent<Collider>());
+            const string pistolPrefabPath = "Assets/Polygon-Lite Survival Collection/Prefabs/SM_Army_Pistol.prefab";
+            GameObject pistolPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(pistolPrefabPath);
+            if (pistolPrefab != null)
+            {
+                GameObject pModel = (GameObject)PrefabUtility.InstantiatePrefab(pistolPrefab, pistolVM.transform);
+                pModel.name = "Model_ArmyPistol_FP";
+                foreach (var c in pModel.GetComponentsInChildren<Collider>()) UnityEngine.Object.DestroyImmediate(c);
+                CenterCompositeModel(pModel);
+                pModel.transform.localPosition = new Vector3(0f, 0f, 0.06f);
+                pModel.transform.localRotation = Quaternion.Euler(0f, -90f, 0f);
+                pModel.transform.localScale = Vector3.one * 0.95f;
+            }
 
-            // Grip / Handle
-            GameObject grip = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            grip.name = "Grip";
-            grip.transform.SetParent(gunGO.transform, false);
-            grip.transform.localPosition = new Vector3(0f, -0.04f, -0.02f);
-            grip.transform.localRotation = Quaternion.Euler(15f, 0f, 0f);
-            grip.transform.localScale = new Vector3(0.04f, 0.12f, 0.055f);
-            if (darkMat != null) grip.GetComponent<MeshRenderer>().sharedMaterial = darkMat;
-            UnityEngine.Object.DestroyImmediate(grip.GetComponent<Collider>());
+            // 2. Authentic 3D Tactical Rifle / SMG ViewModel (POLY - Lite Survival Clean Submachine Gun)
+            GameObject smgVM = new GameObject("SMG_ViewModel");
+            smgVM.transform.SetParent(gunGO.transform, false);
+            smgVM.transform.localPosition = Vector3.zero;
+            smgVM.transform.localRotation = Quaternion.identity;
 
-            // Trigger Guard
-            GameObject guard = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            guard.name = "TriggerGuard";
-            guard.transform.SetParent(gunGO.transform, false);
-            guard.transform.localPosition = new Vector3(0f, -0.015f, 0.035f);
-            guard.transform.localScale = new Vector3(0.02f, 0.04f, 0.05f);
-            if (darkMat != null) guard.GetComponent<MeshRenderer>().sharedMaterial = darkMat;
-            UnityEngine.Object.DestroyImmediate(guard.GetComponent<Collider>());
+            const string smgPrefabPath = "Assets/Polygon-Lite Survival Collection/Prefabs/SM_Special_Submachine_Gun_Clean.prefab";
+            GameObject smgPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(smgPrefabPath);
+            if (smgPrefab != null)
+            {
+                GameObject sModel = (GameObject)PrefabUtility.InstantiatePrefab(smgPrefab, smgVM.transform);
+                sModel.name = "Model_TacticalRifle_FP";
+                foreach (var c in sModel.GetComponentsInChildren<Collider>()) UnityEngine.Object.DestroyImmediate(c);
+                CenterCompositeModel(sModel);
+                sModel.transform.localPosition = new Vector3(-0.03f, -0.04f, 0.12f);
+                sModel.transform.localRotation = Quaternion.Euler(0f, -90f, 0f);
+                sModel.transform.localScale = Vector3.one * 0.85f;
+            }
 
-            // Muzzle Flash Point Light
+            // 3. Muzzle Flash Point Light
             GameObject muzzleGO = new GameObject("MuzzleFlashLight");
             muzzleGO.transform.SetParent(gunGO.transform, false);
-            muzzleGO.transform.localPosition = new Vector3(0f, 0.04f, 0.22f);
+            muzzleGO.transform.localPosition = new Vector3(0f, 0.04f, 0.42f);
             Light muzzleLight = muzzleGO.AddComponent<Light>();
             muzzleLight.type = LightType.Point;
             muzzleLight.color = new Color(1.0f, 0.85f, 0.4f);
@@ -390,8 +390,31 @@ namespace HorrorEscape.Editor
 
             combat.SetWeaponTransform(gunGO.transform);
             combat.SetMuzzleFlashLight(muzzleLight);
+            combat.SetWeaponObjects(pistolVM, smgVM);
 
-            // Configure combat state: Player starts UNARMED (Must discover gun naturally in maze)
+            // Viewmodels start hidden until acquired (Player starts UNARMED)
+            pistolVM.SetActive(false);
+            smgVM.SetActive(false);
+
+            // Synchronize with InventoryManager
+            InventoryManager invMgr = UnityEngine.Object.FindFirstObjectByType<InventoryManager>();
+            if (invMgr != null)
+            {
+                SerializedObject invSo = new SerializedObject(invMgr);
+                invSo.FindProperty("heldPistolObject").objectReferenceValue = pistolVM;
+                invSo.FindProperty("heldSMGObject").objectReferenceValue = smgVM;
+                if (flashRoot != null)
+                {
+                    Transform fModelT = flashRoot.Find("Model_HandheldFlashlight");
+                    if (fModelT != null)
+                    {
+                        invSo.FindProperty("heldFlashlightObject").objectReferenceValue = fModelT.gameObject;
+                    }
+                }
+                invSo.ApplyModifiedProperties();
+            }
+
+            // Configure combat state: Player starts UNARMED
             SerializedObject combatSo = new SerializedObject(combat);
             combatSo.FindProperty("hasUnlockedPistol").boolValue = false;
             combatSo.FindProperty("hasUnlockedSMG").boolValue = false;
@@ -467,34 +490,15 @@ namespace HorrorEscape.Editor
             BackroomsLevelGenerator.RoomRect farRoom = sortedRooms[Mathf.Clamp(roomCount - 1, 1, roomCount - 1)];
 
             float cs = gen.CellSize;
+            var exclusions = new List<Vector3>();
+            var placedObjects = new List<Vector3>();
 
-            // 2. Battery Pickups (5 total spread across distance tiers)
-            CreateBattery(propsRoot, CellWorldPos(earlyRoom.Center, cs, 0.35f));                               // Tier 1 (~5 dist)
-            CreateBattery(propsRoot, CellWorldPos(midRoom1.Center, cs, 0.35f) + new Vector3(1.2f, 0f, 0f));     // Tier 2 (~12 dist)
-            CreateBattery(propsRoot, CellWorldPos(keycardRoom.Center, cs, 0.35f) + new Vector3(-1.2f, 0f, 0f)); // Tier 3 (~18 dist)
-            CreateBattery(propsRoot, CellWorldPos(maintenanceRoom.Center, cs, 0.35f) + new Vector3(1.4f, 0f, 0f)); // Tier 4 (~24 dist)
-            CreateBattery(propsRoot, CellWorldPos(farRoom.Center, cs, 0.35f) + new Vector3(-1.2f, 0f, 0f));     // Tier 5 (~30 dist)
+            // 1. Maintenance Keycard (Phase 3 Access Item) on Open Walkable Floor Pedestal (Never inside pillars!)
+            Vector2Int keycardCell = GetOpenRoomCell(gen, keycardRoom);
+            Vector3 keycardPos = CellWorldPos(keycardCell, cs, 0.45f);
+            exclusions.Add(keycardPos);
 
-            // 3. Ammunition Pickups (3 total, +6 rounds each)
-            CreateAmmoPickup(propsRoot, CellWorldPos(earlyRoom.Center, cs, 0.35f) + new Vector3(-1.2f, 0f, 0f)); // Ammo 1
-            CreateAmmoPickup(propsRoot, CellWorldPos(midRoom1.Center, cs, 0.35f) + new Vector3(0f, 0f, 1.2f));    // Ammo 2
-            CreateAmmoPickup(propsRoot, CellWorldPos(maintenanceRoom.Center, cs, 0.35f) + new Vector3(-1.4f, 0f, 0f)); // Ammo 3
-
-            // Survival Supplies: Almond Water, First Aid, and Calming Sanity Pills
-            CreateAlmondWater(propsRoot, CellWorldPos(earlyRoom.Center, cs, 0.35f) + new Vector3(0f, 0f, -1.2f));
-            CreateAlmondWater(propsRoot, CellWorldPos(farRoom.Center, cs, 0.35f) + new Vector3(1.2f, 0f, 0f));
-            CreateFirstAid(propsRoot, CellWorldPos(maintenanceRoom.Center, cs, 0.35f) + new Vector3(0f, 0f, 1.4f));
-            CreateSanityPills(propsRoot, CellWorldPos(keycardRoom.Center, cs, 0.35f) + new Vector3(0f, 0f, -1.2f));
-            CreateSanityPills(propsRoot, CellWorldPos(midRoom1.Center, cs, 0.35f) + new Vector3(1.2f, 0f, -1.2f));
-
-            // Place Discoverable 9mm Army Pistol in Maze Exploration Room (Player does NOT start with weapon)
-            CreatePistolPickup(propsRoot, CellWorldPos(midRoom1.Center, cs, 0.35f) + new Vector3(-1.0f, 0f, -1.0f));
-
-            // 4. Maintenance Keycard (Phase 3 Access Item)
-            Vector3 keycardPos = CellWorldPos(keycardRoom.Center, cs, 0.45f);
-            CreateKeycardPickup(propsRoot, keycardPos);
-
-            // Table / Pedestal for Keycard
+            // Table / Pedestal for Keycard standing on open floor
             GameObject table = GameObject.CreatePrimitive(PrimitiveType.Cube);
             table.name = "Keycard_Pedestal";
             table.transform.SetParent(propsRoot.transform, false);
@@ -502,13 +506,117 @@ namespace HorrorEscape.Editor
             table.transform.localScale = new Vector3(0.9f, 0.45f, 0.9f);
             if (wallMat != null) table.GetComponent<MeshRenderer>().sharedMaterial = wallMat;
 
-            // 5. Maintenance Room Breaker Box (Phase 4 Switch)
-            Vector3 breakerPos = CellWorldPos(maintenanceRoom.Center, cs, 1.4f) + new Vector3(0f, 0f, cs * 0.4f);
-            powerSwitch = CreateBreakerBox(propsRoot, breakerPos);
+            CreateKeycardPickup(propsRoot, keycardPos);
 
-            // 6. Emergency Exit Gate (Phase 5 Escape at exitCell)
+            // 2. Maintenance Room Breaker Box (Phase 4 Switch) mounted flush against verified solid room wall
+            Vector3 breakerPos;
+            Quaternion breakerRot;
+            if (FurniturePlacer.TryFindSafeWallSpot(gen, maintenanceRoom, cs, exclusions, placedObjects, out Vector3 breakerWallSpot, out Quaternion bWallRot))
+            {
+                breakerPos = new Vector3(breakerWallSpot.x, 1.35f, breakerWallSpot.z);
+                breakerRot = bWallRot;
+                placedObjects.Add(breakerWallSpot);
+            }
+            else
+            {
+                Vector2Int maintCell = GetOpenRoomCell(gen, maintenanceRoom);
+                breakerPos = CellWorldPos(maintCell, cs, 1.35f);
+                breakerRot = Quaternion.identity;
+            }
+            powerSwitch = CreateBreakerBox(propsRoot, breakerPos, breakerRot);
+
+            // 3. Maintenance Room Workbench with Tactical Rifle (POLY - Lite Survival Clean Submachine Gun)
+            Vector3 benchPos;
+            Quaternion benchRot;
+            if (FurniturePlacer.TryFindSafeWallSpot(gen, maintenanceRoom, cs, exclusions, placedObjects, out Vector3 benchWallSpot, out Quaternion bBenchRot))
+            {
+                benchPos = benchWallSpot;
+                benchRot = bBenchRot;
+                placedObjects.Add(benchWallSpot);
+            }
+            else
+            {
+                Vector2Int altMaintCell = GetOpenRoomCell(gen, maintenanceRoom);
+                benchPos = CellWorldPos(altMaintCell, cs, 0f);
+                benchRot = Quaternion.identity;
+            }
+
+            string benchPrefabPath = "Assets/Polygon-Lite Survival Collection/Prefabs/SM_Workbench.prefab";
+            GameObject benchPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(benchPrefabPath);
+            float rifleY = 0.88f;
+            if (benchPrefab != null)
+            {
+                GameObject bench = (GameObject)PrefabUtility.InstantiatePrefab(benchPrefab, propsRoot.transform);
+                bench.name = "Maintenance_Workbench";
+                bench.transform.position = benchPos;
+                bench.transform.rotation = benchRot;
+                bench.transform.localScale = Vector3.one * 0.9f;
+                Renderer[] rBench = bench.GetComponentsInChildren<Renderer>();
+                if (rBench.Length > 0)
+                {
+                    Bounds bb = rBench[0].bounds;
+                    for (int i = 1; i < rBench.Length; i++) bb.Encapsulate(rBench[i].bounds);
+                    bench.transform.position += new Vector3(0f, -bb.min.y, 0f);
+                    rifleY = bb.max.y + 0.04f;
+                }
+            }
+            else
+            {
+                GameObject tableBench = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                tableBench.name = "Maintenance_Table";
+                tableBench.transform.SetParent(propsRoot.transform, false);
+                tableBench.transform.position = benchPos + new Vector3(0f, 0.42f, 0f);
+                tableBench.transform.localScale = new Vector3(1.3f, 0.85f, 0.7f);
+                if (wallMat != null) tableBench.GetComponent<MeshRenderer>().sharedMaterial = wallMat;
+                rifleY = 0.88f;
+            }
+
+            // Spawn Tactical Rifle resting naturally on workbench
+            CreateSMGPickup(propsRoot, new Vector3(benchPos.x, rifleY, benchPos.z));
+
+            // Place an ammo box and battery on the maintenance workbench
+            CreateAmmoPickup(propsRoot, new Vector3(benchPos.x + 0.35f, rifleY, benchPos.z));
+            CreateBattery(propsRoot, new Vector3(benchPos.x - 0.35f, rifleY, benchPos.z));
+
+            // 4. Discoverable 9mm Army Pistol Pickup in Exploration Room (resting naturally on floor)
+            Vector2Int pistolCell = GetOpenRoomCell(gen, midRoom1);
+            CreatePistolPickup(propsRoot, CellWorldPos(pistolCell, cs, 0.06f));
+
+            // 5. Emergency Exit Gate (Phase 5 Escape at exitCell)
             Vector3 exitPos = CellWorldPos(gen.ExitCell, cs, 0f);
             emergencyExit = CreateEmergencyExitGate(propsRoot, exitPos, wallMat, ceilingMat);
+
+            // 6. Rich Ground Item Distribution with Gravity & Physics (natural room corners & perimeter walls)
+            // Batteries (7 total distributed across distance tiers & darkness zones)
+            CreateBattery(propsRoot, CellWorldPos(GetOpenRoomCell(gen, earlyRoom), cs, 0.05f) + new Vector3(0.8f, 0f, 0.8f));
+            CreateBattery(propsRoot, CellWorldPos(GetOpenRoomCell(gen, midRoom1), cs, 0.05f) + new Vector3(-0.9f, 0f, 0.8f));
+            CreateBattery(propsRoot, CellWorldPos(GetOpenRoomCell(gen, keycardRoom), cs, 0.05f) + new Vector3(1.0f, 0f, -0.8f));
+            CreateBattery(propsRoot, CellWorldPos(GetOpenRoomCell(gen, farRoom), cs, 0.05f) + new Vector3(-0.8f, 0f, -0.8f));
+            if (gen.BlackoutRooms.Count > 0)
+                CreateBattery(propsRoot, CellWorldPos(GetOpenRoomCell(gen, gen.BlackoutRooms[0]), cs, 0.05f) + new Vector3(0.6f, 0f, -0.6f));
+            if (gen.PartialBlackoutRooms.Count > 0)
+                CreateBattery(propsRoot, CellWorldPos(GetOpenRoomCell(gen, gen.PartialBlackoutRooms[0]), cs, 0.05f) + new Vector3(-0.6f, 0f, 0.6f));
+
+            // Ammunition (5 total, +6 rounds each)
+            CreateAmmoPickup(propsRoot, CellWorldPos(GetOpenRoomCell(gen, earlyRoom), cs, 0.05f) + new Vector3(-0.8f, 0f, -0.8f));
+            CreateAmmoPickup(propsRoot, CellWorldPos(GetOpenRoomCell(gen, midRoom1), cs, 0.05f) + new Vector3(0.8f, 0f, -0.9f));
+            CreateAmmoPickup(propsRoot, CellWorldPos(GetOpenRoomCell(gen, keycardRoom), cs, 0.05f) + new Vector3(-1.0f, 0f, 1.0f));
+            CreateAmmoPickup(propsRoot, CellWorldPos(GetOpenRoomCell(gen, farRoom), cs, 0.05f) + new Vector3(0.9f, 0f, 0.9f));
+
+            // Backup Searchlight Flashlights (2 discoverable)
+            CreateFlashlightPickup(propsRoot, CellWorldPos(GetOpenRoomCell(gen, earlyRoom), cs, 0.05f) + new Vector3(-0.7f, 0f, 0.7f));
+            if (gen.BlackoutRooms.Count > 1)
+                CreateFlashlightPickup(propsRoot, CellWorldPos(GetOpenRoomCell(gen, gen.BlackoutRooms[1]), cs, 0.05f) + new Vector3(0.7f, 0f, 0.7f));
+
+            // Survival Supplies: Almond Water, First Aid, and Calming Sanity Pills
+            CreateAlmondWater(propsRoot, CellWorldPos(GetOpenRoomCell(gen, earlyRoom), cs, 0.05f) + new Vector3(0f, 0f, -0.9f));
+            CreateAlmondWater(propsRoot, CellWorldPos(GetOpenRoomCell(gen, farRoom), cs, 0.05f) + new Vector3(0.8f, 0f, 0f));
+            CreateAlmondWater(propsRoot, CellWorldPos(GetOpenRoomCell(gen, keycardRoom), cs, 0.05f) + new Vector3(0.9f, 0f, 0f));
+            CreateFirstAid(propsRoot, CellWorldPos(GetOpenRoomCell(gen, midRoom1), cs, 0.05f) + new Vector3(-0.8f, 0f, 0f));
+            CreateFirstAid(propsRoot, CellWorldPos(GetOpenRoomCell(gen, maintenanceRoom), cs, 0.05f) + new Vector3(0f, 0f, 1.0f));
+            CreateFirstAid(propsRoot, CellWorldPos(GetOpenRoomCell(gen, farRoom), cs, 0.05f) + new Vector3(-0.9f, 0f, 0.8f));
+            CreateSanityPills(propsRoot, CellWorldPos(GetOpenRoomCell(gen, keycardRoom), cs, 0.05f) + new Vector3(0f, 0f, -0.9f));
+            CreateSanityPills(propsRoot, CellWorldPos(GetOpenRoomCell(gen, midRoom1), cs, 0.05f) + new Vector3(0.9f, 0f, 0.8f));
 
             // 7. Tactical Hiding Cabinets near Objective Rooms safely against solid walls
             var emptyExclusions = new List<Vector3>();
@@ -561,7 +669,7 @@ namespace HorrorEscape.Editor
                 pIndex++;
             }
 
-            // 8. Stalker Enemy (Kane Pixels Bacteria Entity in distant section)
+            // 9. Stalker Enemy (Kane Pixels Bacteria Entity in distant section)
             DestroyAllNamed("Enemies");
             GameObject enemyRoot = new GameObject("Enemies");
 
@@ -570,8 +678,44 @@ namespace HorrorEscape.Editor
 
             // Add waypoints in adjacent rooms for stalker patrol
             stalker.AddWaypoint(CreateWaypoint(enemyRoot, "WP_FarRoom", stalkerSpawnPos));
-            stalker.AddWaypoint(CreateWaypoint(enemyRoot, "WP_MaintRoom", CellWorldPos(maintenanceRoom.Center, cs, 0.1f)));
-            stalker.AddWaypoint(CreateWaypoint(enemyRoot, "WP_KeyRoom", CellWorldPos(keycardRoom.Center, cs, 0.1f)));
+            stalker.AddWaypoint(CreateWaypoint(enemyRoot, "WP_MaintRoom", CellWorldPos(GetOpenRoomCell(gen, maintenanceRoom), cs, 0.1f)));
+            stalker.AddWaypoint(CreateWaypoint(enemyRoot, "WP_KeyRoom", CellWorldPos(GetOpenRoomCell(gen, keycardRoom), cs, 0.1f)));
+        }
+
+        private static void CenterCompositeModel(GameObject model)
+        {
+            if (model == null) return;
+            Renderer[] rends = model.GetComponentsInChildren<Renderer>();
+            if (rends.Length == 0) return;
+
+            Bounds b = rends[0].bounds;
+            for (int i = 1; i < rends.Length; i++)
+            {
+                b.Encapsulate(rends[i].bounds);
+            }
+
+            Vector3 localCenterOffset = model.transform.InverseTransformPoint(b.center);
+            foreach (Transform child in model.transform)
+            {
+                child.localPosition -= localCenterOffset;
+            }
+        }
+
+        private static Vector2Int GetOpenRoomCell(BackroomsLevelGenerator gen, BackroomsLevelGenerator.RoomRect room)
+        {
+            if (gen == null || gen.Grid == null) return room.Center;
+
+            for (int x = room.x; x < room.x + room.width; x++)
+            {
+                for (int z = room.z; z < room.z + room.length; z++)
+                {
+                    if (gen.IsWalkable(x, z) && gen.Grid[x, z] != BackroomsLevelGenerator.CellType.Pillar)
+                    {
+                        return new Vector2Int(x, z);
+                    }
+                }
+            }
+            return room.Center;
         }
 
         private static Vector3 CellWorldPos(Vector2Int cell, float cs, float y)
@@ -591,6 +735,7 @@ namespace HorrorEscape.Editor
             box.size = new Vector3(0.5f, 0.5f, 0.5f);
 
             root.AddComponent<BatteryPickup>();
+            root.AddComponent<GroundItemPhysics>();
 
             GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(BATTERY_PREFAB);
             if (prefab != null)
@@ -602,8 +747,7 @@ namespace HorrorEscape.Editor
                 model.transform.localScale = Vector3.one * 0.75f;
                 var anim = model.GetComponent<Animator>();
                 if (anim != null) UnityEngine.Object.DestroyImmediate(anim);
-                var col = model.GetComponent<Collider>();
-                if (col != null) UnityEngine.Object.DestroyImmediate(col);
+                foreach (var col in model.GetComponentsInChildren<Collider>()) UnityEngine.Object.DestroyImmediate(col);
             }
         }
 
@@ -623,7 +767,13 @@ namespace HorrorEscape.Editor
             so.FindProperty("ammoAmount").intValue = 6;
             so.ApplyModifiedProperties();
 
-            GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(MATCHBOX_PREFAB);
+            root.AddComponent<GroundItemPhysics>();
+
+            // Prefer authentic Polygon survival ammo box if available, otherwise matchbox
+            const string ammoBoxPrefab = "Assets/Polygon-Lite Survival Collection/Prefabs/SM_Chuck_Pistol_Box_9.19.prefab";
+            GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(ammoBoxPrefab);
+            if (prefab == null) prefab = AssetDatabase.LoadAssetAtPath<GameObject>(MATCHBOX_PREFAB);
+
             if (prefab != null)
             {
                 GameObject model = (GameObject)PrefabUtility.InstantiatePrefab(prefab, root.transform);
@@ -633,8 +783,7 @@ namespace HorrorEscape.Editor
                 model.transform.localScale = Vector3.one * 0.85f;
                 var anim = model.GetComponent<Animator>();
                 if (anim != null) UnityEngine.Object.DestroyImmediate(anim);
-                var col = model.GetComponent<Collider>();
-                if (col != null) UnityEngine.Object.DestroyImmediate(col);
+                foreach (var col in model.GetComponentsInChildren<Collider>()) UnityEngine.Object.DestroyImmediate(col);
             }
         }
 
@@ -656,6 +805,8 @@ namespace HorrorEscape.Editor
             so.FindProperty("isObjectiveItem").boolValue = true;
             so.ApplyModifiedProperties();
 
+            root.AddComponent<GroundItemPhysics>();
+
             GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(TAPE_PREFAB);
             if (prefab != null)
             {
@@ -666,8 +817,7 @@ namespace HorrorEscape.Editor
                 model.transform.localScale = Vector3.one * 0.85f;
                 var anim = model.GetComponent<Animator>();
                 if (anim != null) UnityEngine.Object.DestroyImmediate(anim);
-                var col = model.GetComponent<Collider>();
-                if (col != null) UnityEngine.Object.DestroyImmediate(col);
+                foreach (var col in model.GetComponentsInChildren<Collider>()) UnityEngine.Object.DestroyImmediate(col);
             }
         }
 
@@ -683,6 +833,7 @@ namespace HorrorEscape.Editor
             box.size = new Vector3(0.5f, 0.6f, 0.5f);
 
             root.AddComponent<AlmondWaterPickup>();
+            root.AddComponent<GroundItemPhysics>();
 
             GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(WATER_PREFAB);
             if (prefab != null)
@@ -694,8 +845,7 @@ namespace HorrorEscape.Editor
                 model.transform.localScale = Vector3.one * 0.8f;
                 var anim = model.GetComponent<Animator>();
                 if (anim != null) UnityEngine.Object.DestroyImmediate(anim);
-                var col = model.GetComponent<Collider>();
-                if (col != null) UnityEngine.Object.DestroyImmediate(col);
+                foreach (var col in model.GetComponentsInChildren<Collider>()) UnityEngine.Object.DestroyImmediate(col);
             }
         }
 
@@ -711,8 +861,12 @@ namespace HorrorEscape.Editor
             box.size = new Vector3(0.6f, 0.4f, 0.5f);
 
             root.AddComponent<FirstAidPickup>();
+            root.AddComponent<GroundItemPhysics>();
 
-            GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(FIRSTAID_PREFAB);
+            const string medKitPrefab = "Assets/Polygon-Lite Survival Collection/Prefabs/Medical_Kit.prefab";
+            GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(medKitPrefab);
+            if (prefab == null) prefab = AssetDatabase.LoadAssetAtPath<GameObject>(FIRSTAID_PREFAB);
+
             if (prefab != null)
             {
                 GameObject model = (GameObject)PrefabUtility.InstantiatePrefab(prefab, root.transform);
@@ -722,8 +876,7 @@ namespace HorrorEscape.Editor
                 model.transform.localScale = Vector3.one * 0.8f;
                 var anim = model.GetComponent<Animator>();
                 if (anim != null) UnityEngine.Object.DestroyImmediate(anim);
-                var col = model.GetComponent<Collider>();
-                if (col != null) UnityEngine.Object.DestroyImmediate(col);
+                foreach (var col in model.GetComponentsInChildren<Collider>()) UnityEngine.Object.DestroyImmediate(col);
             }
         }
 
@@ -739,6 +892,7 @@ namespace HorrorEscape.Editor
             box.size = new Vector3(0.5f, 0.4f, 0.5f);
 
             root.AddComponent<SanityPillsPickup>();
+            root.AddComponent<GroundItemPhysics>();
 
             GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(PILLS_PREFAB);
             if (prefab != null)
@@ -750,8 +904,35 @@ namespace HorrorEscape.Editor
                 model.transform.localScale = Vector3.one * 0.85f;
                 var anim = model.GetComponent<Animator>();
                 if (anim != null) UnityEngine.Object.DestroyImmediate(anim);
-                var col = model.GetComponent<Collider>();
-                if (col != null) UnityEngine.Object.DestroyImmediate(col);
+                foreach (var col in model.GetComponentsInChildren<Collider>()) UnityEngine.Object.DestroyImmediate(col);
+            }
+        }
+
+        private static void CreateFlashlightPickup(GameObject parent, Vector3 pos)
+        {
+            GameObject root = new GameObject("Pickup_IndustrialFlashlight");
+            root.transform.SetParent(parent.transform, false);
+            root.transform.position = pos;
+
+            BoxCollider box = root.AddComponent<BoxCollider>();
+            box.isTrigger = true;
+            box.center = new Vector3(0f, 0.15f, 0f);
+            box.size = new Vector3(0.5f, 0.4f, 0.5f);
+
+            root.AddComponent<FlashlightPickup>();
+            root.AddComponent<GroundItemPhysics>();
+
+            GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(FLASHLIGHT_PREFAB);
+            if (prefab != null)
+            {
+                GameObject model = (GameObject)PrefabUtility.InstantiatePrefab(prefab, root.transform);
+                model.name = "Model_Flashlight";
+                model.transform.localPosition = new Vector3(0f, 0.04f, 0f);
+                model.transform.localRotation = Quaternion.Euler(-90f, 25f, 0f);
+                model.transform.localScale = Vector3.one * 0.55f;
+                var anim = model.GetComponent<Animator>();
+                if (anim != null) UnityEngine.Object.DestroyImmediate(anim);
+                foreach (var col in model.GetComponentsInChildren<Collider>()) UnityEngine.Object.DestroyImmediate(col);
             }
         }
 
@@ -767,6 +948,7 @@ namespace HorrorEscape.Editor
             box.size = new Vector3(0.6f, 0.4f, 0.6f);
 
             root.AddComponent<HorrorEscape.Interaction.PistolPickup>();
+            root.AddComponent<GroundItemPhysics>();
 
             const string pistolPrefabPath = "Assets/Polygon-Lite Survival Collection/Prefabs/SM_Army_Pistol.prefab";
             GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(pistolPrefabPath);
@@ -774,20 +956,49 @@ namespace HorrorEscape.Editor
             {
                 GameObject model = (GameObject)PrefabUtility.InstantiatePrefab(prefab, root.transform);
                 model.name = "Model_ArmyPistol";
-                model.transform.localPosition = Vector3.zero;
+                foreach (var col in model.GetComponentsInChildren<Collider>()) UnityEngine.Object.DestroyImmediate(col);
+                CenterCompositeModel(model);
+                model.transform.localPosition = new Vector3(0f, 0.04f, 0f);
                 model.transform.localRotation = Quaternion.Euler(-90f, 45f, 0f);
                 model.transform.localScale = Vector3.one * 1.0f;
-                var col = model.GetComponent<Collider>();
-                if (col != null) UnityEngine.Object.DestroyImmediate(col);
             }
         }
 
-        private static PowerSwitch CreateBreakerBox(GameObject parent, Vector3 pos)
+        private static void CreateSMGPickup(GameObject parent, Vector3 pos)
+        {
+            GameObject root = new GameObject("Pickup_TacticalRifle");
+            root.transform.SetParent(parent.transform, false);
+            root.transform.position = pos;
+
+            BoxCollider box = root.AddComponent<BoxCollider>();
+            box.isTrigger = true;
+            box.center = new Vector3(0f, 0.15f, 0f);
+            box.size = new Vector3(0.8f, 0.4f, 0.8f);
+
+            root.AddComponent<HorrorEscape.Interaction.SMGPickup>();
+            root.AddComponent<GroundItemPhysics>();
+
+            const string smgPrefabPath = "Assets/Polygon-Lite Survival Collection/Prefabs/SM_Special_Submachine_Gun_Clean.prefab";
+            GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(smgPrefabPath);
+            if (prefab != null)
+            {
+                GameObject model = (GameObject)PrefabUtility.InstantiatePrefab(prefab, root.transform);
+                model.name = "Model_TacticalRifle";
+                foreach (var col in model.GetComponentsInChildren<Collider>()) UnityEngine.Object.DestroyImmediate(col);
+                CenterCompositeModel(model);
+                model.transform.localPosition = new Vector3(0f, 0.06f, 0f);
+                model.transform.localRotation = Quaternion.Euler(-90f, 45f, 0f);
+                model.transform.localScale = Vector3.one * 0.9f;
+            }
+        }
+
+        private static PowerSwitch CreateBreakerBox(GameObject parent, Vector3 pos, Quaternion rot)
         {
             GameObject boxGO = GameObject.CreatePrimitive(PrimitiveType.Cube);
             boxGO.name = "MaintenanceBreakerBox";
             boxGO.transform.SetParent(parent.transform, false);
             boxGO.transform.position = pos;
+            boxGO.transform.rotation = rot;
             boxGO.transform.localScale = new Vector3(0.6f, 0.8f, 0.25f);
 
             Material boxMat = AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/M_Monster.mat");
