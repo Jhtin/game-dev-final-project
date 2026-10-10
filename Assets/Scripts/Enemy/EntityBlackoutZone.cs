@@ -17,10 +17,10 @@ namespace HorrorEscape.Enemy
     {
         [Header("Distance Thresholds")]
         [Tooltip("Distance at which lights start flickering and buzzing violently.")]
-        [SerializeField] private float flickerRange = 26.0f;
+        [SerializeField] private float flickerRange = 18.0f;
 
         [Tooltip("Distance at which lights completely die into pitch darkness.")]
-        [SerializeField] private float blackoutRange = 16.0f;
+        [SerializeField] private float blackoutRange = 11.0f;
 
         [Header("Ambient Lighting in Blackout")]
         [SerializeField] private Color pitchBlackAmbient = new Color(0.015f, 0.015f, 0.012f, 1.0f);

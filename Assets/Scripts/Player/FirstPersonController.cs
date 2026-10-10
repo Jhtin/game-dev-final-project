@@ -32,11 +32,11 @@ namespace HorrorEscape.Player
         private bool isThirdPerson = false;
         public bool IsThirdPerson => isThirdPerson;
 
-        [Header("Stamina System")]
+        [Header("Stamina System (Level 1 Balanced)")]
         [SerializeField] private float maxStamina = 100.0f;
-        [SerializeField] private float staminaDrainRate = 22.0f;
-        [SerializeField] private float staminaRecoveryRate = 15.0f;
-        [SerializeField] private float staminaCooldown = 1.2f;
+        [SerializeField] private float staminaDrainRate = 16.0f; // Lasts ~6.2s continuous sprint
+        [SerializeField] private float staminaRecoveryRate = 22.0f; // Fast recovery
+        [SerializeField] private float staminaCooldown = 0.8f;
 
         [Header("Crouch Settings")]
         [SerializeField] private float standingHeight = 1.8f;

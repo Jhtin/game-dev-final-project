@@ -38,19 +38,19 @@ namespace HorrorEscape.Enemy
         [SerializeField] private float maxHealth = 100.0f;
         [SerializeField] private float attackDamage = 30.0f;
         [SerializeField] private float attackCooldown = 1.3f;
-        [SerializeField] private float stunDuration = 2.2f;
+        [SerializeField] private float stunDuration = 3.5f;
         private float currentHealth;
         private float attackCooldownTimer;
 
-        [Header("Movement Speeds")]
-        [SerializeField] private float patrolSpeed = 2.0f;
-        [SerializeField] private float investigateSpeed = 3.0f;
-        [SerializeField] private float chaseSpeed = 4.8f;
+        [Header("Movement Speeds (Level 1 Difficulty)")]
+        [SerializeField] private float patrolSpeed = 1.4f;
+        [SerializeField] private float investigateSpeed = 2.0f;
+        [SerializeField] private float chaseSpeed = 3.0f;
 
-        [Header("Vision Cone & Detection")]
-        [SerializeField] private float baseViewDistance = 12.0f;
-        [SerializeField] private float flashlightViewDistance = 24.0f;
-        [SerializeField] private float fieldOfViewAngle = 100.0f;
+        [Header("Vision Cone & Detection (Level 1 Difficulty)")]
+        [SerializeField] private float baseViewDistance = 8.5f;
+        [SerializeField] private float flashlightViewDistance = 15.0f;
+        [SerializeField] private float fieldOfViewAngle = 75.0f;
         [SerializeField] private float eyeHeight = 1.6f;
         [SerializeField] private LayerMask sightObstacles = ~0;
 
@@ -59,10 +59,10 @@ namespace HorrorEscape.Enemy
         [SerializeField] private float waypointWaitTime = 2.5f;
         [SerializeField] private float randomPatrolRadius = 15.0f;
 
-        [Header("Combat & Kill")]
-        [SerializeField] private float killDistance = 1.8f;
-        [SerializeField] private float searchDuration = 4.5f;
-        [SerializeField] private float lostSightGraceDuration = 4.0f;
+        [Header("Combat & Kill (Level 1 Difficulty)")]
+        [SerializeField] private float killDistance = 1.25f;
+        [SerializeField] private float searchDuration = 3.2f;
+        [SerializeField] private float lostSightGraceDuration = 2.2f;
 
         // Pacing & Behavioral Modifiers
         private bool isDormant = false;
@@ -285,8 +285,8 @@ namespace HorrorEscape.Enemy
                 }
             }
 
-            // Proximity auditory / scent awareness: entity senses player around corridor corners
-            float senseRadius = playerController != null && playerController.IsCrouching ? 5.0f : 12.0f;
+            // Proximity auditory / scent awareness: entity senses player around corridor corners (Level 1 Difficulty)
+            float senseRadius = playerController != null && playerController.IsCrouching ? 2.0f : 5.5f;
             if (distToPlayer <= senseRadius)
             {
                 lastKnownPlayerPos = playerTransform.position;
@@ -308,7 +308,7 @@ namespace HorrorEscape.Enemy
             if (distToPlayer <= maxRange)
             {
                 float angle = Vector3.Angle(transform.forward, dirToPlayer);
-                bool isVeryClose = distToPlayer < 4.5f;
+                bool isVeryClose = distToPlayer < 2.5f;
 
                 if (angle < fieldOfViewAngle * 0.5f || isVeryClose)
                 {
@@ -390,7 +390,7 @@ namespace HorrorEscape.Enemy
             lastKnownPlayerPos = noiseOrigin;
 
             float dist = Vector3.Distance(transform.position, noiseOrigin);
-            if (dist < 8.0f)
+            if (dist < 4.5f)
             {
                 lostSightTimer = lostSightGraceDuration;
                 SetState(StalkerState.Chase);
@@ -655,9 +655,9 @@ namespace HorrorEscape.Enemy
         {
             if (aggressive)
             {
-                patrolSpeed = 2.4f;
-                chaseSpeed = 5.0f;
-                baseViewDistance = 14.0f;
+                patrolSpeed = 1.7f;
+                chaseSpeed = 3.4f;
+                baseViewDistance = 10.0f;
             }
         }
 
