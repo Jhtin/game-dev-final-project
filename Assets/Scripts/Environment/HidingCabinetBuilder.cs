@@ -27,15 +27,25 @@ namespace HorrorEscape.Environment
             if (woodMat == null)
             {
 #if UNITY_EDITOR
-                woodMat = AssetDatabase.LoadAssetAtPath<Material>("Assets/Furniture/Source/Materials/closet2_BaseColor.mat");
+                string[] woodMatPaths = new string[]
+                {
+                    "Assets/Hand Painted Seamless Wood Texture/Materials/M_Wood1.mat",
+                    "Assets/Hand Painted Seamless Wood Texture/Materials/M_Wood2.mat",
+                    "Assets/Hand Painted Seamless Wood Texture/Materials/M_Wood3.mat"
+                };
+                string chosenPath = woodMatPaths[Random.Range(0, woodMatPaths.Length)];
+                woodMat = AssetDatabase.LoadAssetAtPath<Material>(chosenPath);
                 if (woodMat == null)
-                    woodMat = AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/M_Door.mat");
+                {
+                    woodMat = AssetDatabase.LoadAssetAtPath<Material>("Assets/Hand Painted Seamless Wood Texture/Materials/M_Wood1.mat");
+                }
 #endif
                 if (woodMat == null)
                 {
                     woodMat = new Material(Shader.Find("Standard"))
                     {
-                        color = new Color(0.38f, 0.25f, 0.14f)
+                        name = "M_HandPaintedWood_Fallback",
+                        color = new Color(0.42f, 0.28f, 0.16f)
                     };
                 }
             }

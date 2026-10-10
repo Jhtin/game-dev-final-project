@@ -156,13 +156,13 @@ namespace HorrorEscape.Environment
                 switch (theme)
                 {
                     case 0: // Lounge
-                        count += SpawnLounge(room, cs, root.transform, exclusions, placed, rng);
+                        count += SpawnLounge(gen, room, cs, root.transform, exclusions, placed, rng);
                         break;
                     case 1: // Office
-                        count += SpawnOffice(room, cs, root.transform, exclusions, placed, rng);
+                        count += SpawnOffice(gen, room, cs, root.transform, exclusions, placed, rng);
                         break;
                     case 2: // Storage
-                        count += SpawnStorage(room, cs, root.transform, exclusions, placed, rng);
+                        count += SpawnStorage(gen, room, cs, root.transform, exclusions, placed, rng);
                         break;
                     case 3: // Solitary Dread
                         count += SpawnSolitary(room, cs, root.transform, exclusions, placed, rng);
@@ -180,7 +180,7 @@ namespace HorrorEscape.Environment
             return count;
         }
 
-        private int SpawnLounge(BackroomsLevelGenerator.RoomRect room, float cs, Transform parent,
+        private int SpawnLounge(BackroomsLevelGenerator gen, BackroomsLevelGenerator.RoomRect room, float cs, Transform parent,
             List<Vector3> exclusions, List<Vector3> placed, System.Random rng)
         {
             int placedCount = 0;
@@ -211,10 +211,19 @@ namespace HorrorEscape.Environment
                     }
                 }
             }
+
+            // Hiding Cabinet in large lounges along a verified solid room wall
+            if (room.isLarge && TryFindSafeWallSpot(gen, room, cs, exclusions, placed, out Vector3 safeCabPos, out Quaternion safeCabRot))
+            {
+                HidingCabinetBuilder.BuildCabinet(safeCabPos, safeCabRot, parent);
+                placed.Add(safeCabPos);
+                placedCount++;
+            }
+
             return placedCount;
         }
 
-        private int SpawnOffice(BackroomsLevelGenerator.RoomRect room, float cs, Transform parent,
+        private int SpawnOffice(BackroomsLevelGenerator gen, BackroomsLevelGenerator.RoomRect room, float cs, Transform parent,
             List<Vector3> exclusions, List<Vector3> placed, System.Random rng)
         {
             int placedCount = 0;
@@ -232,27 +241,25 @@ namespace HorrorEscape.Environment
                 }
             }
 
-            // Interactive Hiding Cabinet in Office
-            Vector3 closetPos = new Vector3((room.x + room.width) * cs - 0.75f, 0f, (room.z + room.length * 0.5f) * cs);
-            if (IsClear(closetPos, exclusions, placed, 1.5f))
+            // Interactive Hiding Cabinet in Office safely against verified solid wall (never blocks doorways or hallways!)
+            if (TryFindSafeWallSpot(gen, room, cs, exclusions, placed, out Vector3 safeCabPos, out Quaternion safeCabRot))
             {
-                HidingCabinetBuilder.BuildCabinet(closetPos, Quaternion.Euler(0f, -90f, 0f), parent);
-                placed.Add(closetPos);
+                HidingCabinetBuilder.BuildCabinet(safeCabPos, safeCabRot, parent);
+                placed.Add(safeCabPos);
                 placedCount++;
             }
             return placedCount;
         }
 
-        private int SpawnStorage(BackroomsLevelGenerator.RoomRect room, float cs, Transform parent,
+        private int SpawnStorage(BackroomsLevelGenerator gen, BackroomsLevelGenerator.RoomRect room, float cs, Transform parent,
             List<Vector3> exclusions, List<Vector3> placed, System.Random rng)
         {
             int placedCount = 0;
-            // Interactive Hiding Cabinet in Storage Room
-            Vector3 closet1 = new Vector3(room.x * cs + 0.75f, 0f, (room.z + 0.8f) * cs);
-            if (IsClear(closet1, exclusions, placed, 1.4f))
+            // Interactive Hiding Cabinet in Storage Room safely against verified solid wall
+            if (TryFindSafeWallSpot(gen, room, cs, exclusions, placed, out Vector3 safeCabPos, out Quaternion safeCabRot))
             {
-                HidingCabinetBuilder.BuildCabinet(closet1, Quaternion.Euler(0f, 90f, 0f), parent);
-                placed.Add(closet1);
+                HidingCabinetBuilder.BuildCabinet(safeCabPos, safeCabRot, parent);
+                placed.Add(safeCabPos);
                 placedCount++;
             }
 
@@ -325,17 +332,9 @@ namespace HorrorEscape.Environment
 
                     if (walkableNeighbors == 1 && IsClear(center, exclusions, placed, 1.4f))
                     {
-                        if (rng.NextDouble() < 0.5)
-                        {
-                            HidingCabinetBuilder.BuildCabinet(center, rot, parent);
-                            placed.Add(center);
-                            count++;
-                        }
-                        else
-                        {
-                            Spawn(Pick(armchairPrefabs, rng), center, rot, parent, placed);
-                            count++;
-                        }
+                        // Dead ends get an armchair or chair tucked in the corner; NEVER blocking cabinets!
+                        Spawn(Pick(armchairPrefabs, rng), center, rot, parent, placed);
+                        count++;
                     }
                 }
             }
@@ -400,6 +399,76 @@ namespace HorrorEscape.Environment
             foreach (var ap in FindObjectsByType<AmmunitionPickup>(FindObjectsSortMode.None)) points.Add(ap.transform.position);
 
             return points;
+        }
+
+        private bool TryFindSafeWallSpot(BackroomsLevelGenerator gen, BackroomsLevelGenerator.RoomRect room, float cs,
+            List<Vector3> exclusions, List<Vector3> placed, out Vector3 position, out Quaternion rotation)
+        {
+            position = Vector3.zero;
+            rotation = Quaternion.identity;
+            if (gen == null) return false;
+
+            // 1. Try West wall (cabinet back against West wall, facing East (+X))
+            for (int z = room.z + 1; z < room.z + room.length - 1; z++)
+            {
+                if (!gen.IsWalkable(room.x - 1, z) && !gen.IsWalkable(room.x - 1, z - 1) && !gen.IsWalkable(room.x - 1, z + 1))
+                {
+                    Vector3 candidate = new Vector3(room.x * cs + 0.65f, 0f, z * cs + cs * 0.5f);
+                    if (IsClear(candidate, exclusions, placed, 1.6f))
+                    {
+                        position = candidate;
+                        rotation = Quaternion.Euler(0f, 90f, 0f);
+                        return true;
+                    }
+                }
+            }
+
+            // 2. Try East wall (cabinet back against East wall, facing West (-X))
+            for (int z = room.z + 1; z < room.z + room.length - 1; z++)
+            {
+                if (!gen.IsWalkable(room.x + room.width, z) && !gen.IsWalkable(room.x + room.width, z - 1) && !gen.IsWalkable(room.x + room.width, z + 1))
+                {
+                    Vector3 candidate = new Vector3((room.x + room.width) * cs - 0.65f, 0f, z * cs + cs * 0.5f);
+                    if (IsClear(candidate, exclusions, placed, 1.6f))
+                    {
+                        position = candidate;
+                        rotation = Quaternion.Euler(0f, -90f, 0f);
+                        return true;
+                    }
+                }
+            }
+
+            // 3. Try South wall (cabinet back against South wall, facing North (+Z))
+            for (int x = room.x + 1; x < room.x + room.width - 1; x++)
+            {
+                if (!gen.IsWalkable(x, room.z - 1) && !gen.IsWalkable(x - 1, room.z - 1) && !gen.IsWalkable(x + 1, room.z - 1))
+                {
+                    Vector3 candidate = new Vector3(x * cs + cs * 0.5f, 0f, room.z * cs + 0.65f);
+                    if (IsClear(candidate, exclusions, placed, 1.6f))
+                    {
+                        position = candidate;
+                        rotation = Quaternion.Euler(0f, 0f, 0f);
+                        return true;
+                    }
+                }
+            }
+
+            // 4. Try North wall (cabinet back against North wall, facing South (-Z))
+            for (int x = room.x + 1; x < room.x + room.width - 1; x++)
+            {
+                if (!gen.IsWalkable(x, room.z + room.length) && !gen.IsWalkable(x - 1, room.z + room.length) && !gen.IsWalkable(x + 1, room.z + room.length))
+                {
+                    Vector3 candidate = new Vector3(x * cs + cs * 0.5f, 0f, (room.z + room.length) * cs - 0.65f);
+                    if (IsClear(candidate, exclusions, placed, 1.6f))
+                    {
+                        position = candidate;
+                        rotation = Quaternion.Euler(0f, 180f, 0f);
+                        return true;
+                    }
+                }
+            }
+
+            return false;
         }
 
         private GameObject Pick(GameObject[] array, System.Random rng)

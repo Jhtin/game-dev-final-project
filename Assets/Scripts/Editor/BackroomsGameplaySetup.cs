@@ -509,15 +509,24 @@ namespace HorrorEscape.Editor
             Vector3 exitPos = CellWorldPos(gen.ExitCell, cs, 0f);
             emergencyExit = CreateEmergencyExitGate(propsRoot, exitPos, wallMat, ceilingMat);
 
-            // 7. Tactical Hiding Cabinets near Objective Rooms
-            Vector3 earlyCabPos = CellWorldPos(earlyRoom.Center, cs, 0f) + new Vector3(-cs * 0.4f, 0f, 0f);
-            HidingCabinetBuilder.BuildCabinet(earlyCabPos, Quaternion.Euler(0f, 90f, 0f), propsRoot.transform);
-
-            Vector3 keycardCabPos = CellWorldPos(keycardRoom.Center, cs, 0f) + new Vector3(cs * 0.4f, 0f, 0f);
-            HidingCabinetBuilder.BuildCabinet(keycardCabPos, Quaternion.Euler(0f, -90f, 0f), propsRoot.transform);
-
-            Vector3 maintCabPos = CellWorldPos(maintenanceRoom.Center, cs, 0f) + new Vector3(-cs * 0.4f, 0f, 0f);
-            HidingCabinetBuilder.BuildCabinet(maintCabPos, Quaternion.Euler(0f, 90f, 0f), propsRoot.transform);
+            // 7. Tactical Hiding Cabinets near Objective Rooms safely against solid walls
+            var emptyExclusions = new List<Vector3>();
+            var placedTactical = new List<Vector3>();
+            if (FurniturePlacer.TryFindSafeWallSpot(gen, earlyRoom, cs, emptyExclusions, placedTactical, out Vector3 earlyCabPos, out Quaternion earlyCabRot))
+            {
+                HidingCabinetBuilder.BuildCabinet(earlyCabPos, earlyCabRot, propsRoot.transform);
+                placedTactical.Add(earlyCabPos);
+            }
+            if (FurniturePlacer.TryFindSafeWallSpot(gen, keycardRoom, cs, emptyExclusions, placedTactical, out Vector3 keycardCabPos, out Quaternion keycardCabRot))
+            {
+                HidingCabinetBuilder.BuildCabinet(keycardCabPos, keycardCabRot, propsRoot.transform);
+                placedTactical.Add(keycardCabPos);
+            }
+            if (FurniturePlacer.TryFindSafeWallSpot(gen, maintenanceRoom, cs, emptyExclusions, placedTactical, out Vector3 maintCabPos, out Quaternion maintCabRot))
+            {
+                HidingCabinetBuilder.BuildCabinet(maintCabPos, maintCabRot, propsRoot.transform);
+                placedTactical.Add(maintCabPos);
+            }
 
             // 8. Instantiate Darkness Zone Volumes for Complete and Partial Blackout Sectors
             DestroyAllNamed("Darkness_Zones");
