@@ -30,6 +30,7 @@ namespace HorrorEscape.Editor
     public static class BackroomsGameplaySetup
     {
         private const string ScenePath = "Assets/Scenes/HorrorEscapeLevel.unity";
+        public const string FixedScenePath = "Assets/Scenes/BackroomsFixedLevel.unity";
         private const string BATTERY_PREFAB = "Assets/Survival Tools/Prefabs/battery.prefab";
         private const string MATCHBOX_PREFAB = "Assets/Survival Tools/Prefabs/matchbox.prefab";
         private const string FLASHLIGHT_PREFAB = "Assets/Survival Tools/Prefabs/flashlight.prefab";
@@ -44,18 +45,47 @@ namespace HorrorEscape.Editor
             EditorApplication.delayCall += () =>
             {
                 if (EditorApplication.isPlayingOrWillChangePlaymode) return;
-                if (SessionState.GetBool("Backrooms10MinSetupRan_v1", false)) return;
-                SessionState.SetBool("Backrooms10MinSetupRan_v1", true);
-                Debug.Log("[BackroomsGameplaySetup] AutoRunOnCompile triggered!");
-                Setup10MinuteGameplayBatch();
+                if (!File.Exists(FixedScenePath))
+                {
+                    Debug.Log("[BackroomsGameplaySetup] Auto-generating missing fixed scene: " + FixedScenePath);
+                    CreateNewFixedScene();
+                }
             };
+        }
+
+        [MenuItem("Backrooms/Create New Fixed Scene (BackroomsFixedLevel)")]
+        [MenuItem("Tools/Create New Fixed Scene (BackroomsFixedLevel)")]
+        public static void CreateNewFixedSceneMenu()
+        {
+            CreateNewFixedScene();
+
+            if (!Application.isBatchMode)
+            {
+                EditorUtility.DisplayDialog("Backrooms Fixed Level Created",
+                    "Brand new 'BackroomsFixedLevel.unity' scene successfully created and configured!\n\n" +
+                    "- 32x32 Procedural Maze with safe corridors\n" +
+                    "- Authentic Army Pistol & Tactical Rifle models & viewmodels (centering offset fixed)\n" +
+                    "- Maintenance Workbench with SMG, ammo, and battery\n" +
+                    "- Ground pickups with realistic gravity physics (no floating!)\n" +
+                    "- Drop items with [G] key\n" +
+                    "- Repaired objective flow: Keycard on open floor + Wall-mounted Breaker Box\n" +
+                    "- Hiding Cabinets along room walls with auto-closing door animation\n" +
+                    "- Stalker AI flees 12s when player hides\n" +
+                    "- Player Jump feature enabled ([Space])\n" +
+                    "- NavMesh baked cleanly!", "OK");
+            }
+        }
+
+        public static void CreateNewFixedScene()
+        {
+            Setup10MinuteGameplayBatch(FixedScenePath);
         }
 
         [MenuItem("Tools/Setup 10-Minute Backrooms Survival Gameplay")]
         [MenuItem("Backrooms/Setup Level 1 (Full Rebuild)")]
         public static void Setup10MinuteGameplayMenu()
         {
-            Setup10MinuteGameplayBatch();
+            Setup10MinuteGameplayBatch(ScenePath);
 
             if (!Application.isBatchMode)
             {
@@ -71,11 +101,20 @@ namespace HorrorEscape.Editor
             }
         }
 
-        public static void Setup10MinuteGameplayBatch()
+        public static void Setup10MinuteGameplayBatch(string targetScenePath = ScenePath)
         {
-            Debug.Log("[BackroomsGameplaySetup] Starting 10-minute Backrooms gameplay setup...");
+            Debug.Log($"[BackroomsGameplaySetup] Starting Backrooms gameplay setup for {targetScenePath}...");
 
-            var scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+            UnityEngine.SceneManagement.Scene scene;
+            if (File.Exists(targetScenePath))
+            {
+                scene = EditorSceneManager.OpenScene(targetScenePath, OpenSceneMode.Single);
+            }
+            else
+            {
+                scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+                EditorSceneManager.SaveScene(scene, targetScenePath);
+            }
 
             // 1. Ensure Backrooms Level Materials & Atmosphere
             EnsureMaterials(out Material wallMat, out Material floorMat, out Material ceilingMat, out Material trimMat, out Material darkMat);
@@ -127,9 +166,27 @@ namespace HorrorEscape.Editor
 
             // 9. Save Scene
             EditorSceneManager.MarkSceneDirty(scene);
-            EditorSceneManager.SaveScene(scene);
+            EditorSceneManager.SaveScene(scene, targetScenePath);
+            AddSceneToBuildSettings(targetScenePath);
 
-            Debug.Log("[BackroomsGameplaySetup] 10-Minute Backrooms Survival Gameplay setup successfully saved!");
+            Debug.Log($"[BackroomsGameplaySetup] Backrooms Survival Gameplay setup successfully saved to {targetScenePath}!");
+        }
+
+        private static void AddSceneToBuildSettings(string scenePath)
+        {
+            var currentScenes = EditorBuildSettings.scenes;
+            bool found = false;
+            foreach (var s in currentScenes)
+            {
+                if (s != null && s.path == scenePath) { found = true; break; }
+            }
+            if (!found)
+            {
+                var newScenes = new EditorBuildSettingsScene[currentScenes.Length + 1];
+                for (int i = 0; i < currentScenes.Length; i++) newScenes[i] = currentScenes[i];
+                newScenes[newScenes.Length - 1] = new EditorBuildSettingsScene(scenePath, true);
+                EditorBuildSettings.scenes = newScenes;
+            }
         }
 
         private static void EnsureMaterials(out Material wallMat, out Material floorMat, out Material ceilingMat, out Material trimMat, out Material darkMat)
