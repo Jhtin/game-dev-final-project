@@ -51,6 +51,7 @@ namespace HorrorEscape.Editor
         }
 
         [MenuItem("Tools/Setup 10-Minute Backrooms Survival Gameplay")]
+        [MenuItem("Backrooms/Setup Level 1 (Full Rebuild)")]
         public static void Setup10MinuteGameplayMenu()
         {
             Setup10MinuteGameplayBatch();

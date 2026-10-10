@@ -88,6 +88,7 @@ namespace HorrorEscape.Editor
         }
 
         [MenuItem("Tools/Populate Backrooms Furniture")]
+        [MenuItem("Backrooms/Populate Backrooms Furniture")]
         public static void PopulateFurnitureMenu()
         {
             var gen = UnityEngine.Object.FindFirstObjectByType<BackroomsLevelGenerator>();
