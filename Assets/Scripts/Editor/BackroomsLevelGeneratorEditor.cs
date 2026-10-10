@@ -33,6 +33,12 @@ namespace HorrorEscape.Editor
                 EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
             }
 
+            GUI.backgroundColor = new Color(0.35f, 0.75f, 0.95f);
+            if (GUILayout.Button("POPULATE BACKROOMS FURNITURE", GUILayout.Height(30)))
+            {
+                FurniturePlacer.PopulateFurnitureMenu();
+            }
+
             GUI.backgroundColor = Color.white;
             if (GUILayout.Button("Validate Map & Playtime QC", GUILayout.Height(28)))
             {

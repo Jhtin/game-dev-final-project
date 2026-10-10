@@ -150,6 +150,14 @@ namespace HorrorEscape.Environment
         public List<RoomRect> PartialBlackoutRooms => partialBlackoutRooms;
         public CellType[,] Grid => grid;
 
+        public void EnsureGridLayout()
+        {
+            if (grid == null || rooms == null || rooms.Count == 0)
+            {
+                GenerateGridLayout();
+            }
+        }
+
         private void Reset()
         {
             EnsureMaterials();

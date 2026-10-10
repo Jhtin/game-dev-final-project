@@ -101720,6 +101720,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1923401970}
   - component: {fileID: 1923401969}
+  - component: {fileID: 1923401971}
   m_Layer: 0
   m_Name: BackroomsLevelGenerator
   m_TagString: Untagged
@@ -101727,6 +101728,46 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
+--- !u!114 &1923401971
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1923401968}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b9e203d09e74539ac28f901b234d6f02, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HorrorEscape.Environment.BackroomsFurnitureSpawner
+  sofaPrefabs:
+  - {fileID: 100100000, guid: 4da9f6017c5c2954282fe23c8f297ec2, type: 3}
+  - {fileID: 100100000, guid: bd72486aa780d7c488fce4c5de88266f, type: 3}
+  - {fileID: 100100000, guid: d9e6213ffc5943b4db8396985aa3f894, type: 3}
+  - {fileID: 100100000, guid: 245712dbd63f6f94e8467250c1caedd9, type: 3}
+  - {fileID: 100100000, guid: 2c59b54db7aeb3d438ea1c0bf9694519, type: 3}
+  - {fileID: 100100000, guid: d5026a2aaf9d8394a9e8b886d38dbfac, type: 3}
+  - {fileID: 100100000, guid: 2d5da6ebed3d1dc4db41b66b5eac1997, type: 3}
+  armchairPrefabs:
+  - {fileID: 100100000, guid: 0a94bd08074ccfd4e938cda201930e63, type: 3}
+  - {fileID: 100100000, guid: 0602526b549f4e74c9107db59bde2a39, type: 3}
+  - {fileID: 100100000, guid: 41cf0c45f4ecbd0469567b5a28e21395, type: 3}
+  - {fileID: 100100000, guid: 80967ac7bb2c8104b8dd5b649046d79b, type: 3}
+  chairPrefabs:
+  - {fileID: 100100000, guid: a42ad6a4668ecfb44a1f036838e43f67, type: 3}
+  tablePrefabs:
+  - {fileID: 100100000, guid: 6f43b2566a8dcad4aa8e75125eeda38e, type: 3}
+  - {fileID: 100100000, guid: 204da6aadc13e164eac745605815a273, type: 3}
+  commodePrefabs:
+  - {fileID: 100100000, guid: f1ffc5e47031c224a92e5b203193d60b, type: 3}
+  - {fileID: 100100000, guid: cf75d98c5ad60534184b2a6377117ef9, type: 3}
+  closetPrefabs:
+  - {fileID: 100100000, guid: 9d4494b8b100519479f9699c5a7390a9, type: 3}
+  - {fileID: 100100000, guid: 0811362ae53573c47be253aac1dbdd5d, type: 3}
+  - {fileID: 100100000, guid: 7be1856a1844e5a47b82d7cb61f184e5, type: 3}
+  - {fileID: 100100000, guid: c24cdd6fcf1f09248832426ea5388c7f, type: 3}
+  randomSeed: 1337
+  autoSpawnIfEmpty: 1
 --- !u!114 &1923401969
 MonoBehaviour:
   m_ObjectHideFlags: 0

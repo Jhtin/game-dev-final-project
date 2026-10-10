@@ -117,10 +117,13 @@ namespace HorrorEscape.Editor
             dirSo.FindProperty("emergencyExit").objectReferenceValue = emergencyExit;
             dirSo.ApplyModifiedProperties();
 
-            // 7. Synchronously Bake NavMesh for Corridors
+            // 7. Populate Authentic Backrooms Furniture
+            FurniturePlacer.PopulateFurniture(generator);
+
+            // 8. Synchronously Bake NavMesh for Corridors and Furniture Obstacles
             BakeSceneNavMesh();
 
-            // 8. Save Scene
+            // 9. Save Scene
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene);
 
