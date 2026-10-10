@@ -86,6 +86,11 @@ namespace HorrorEscape.Interaction
                 }
             }
 
+            if (HorrorEscape.Managers.EscapeMissionManager.Instance != null)
+            {
+                HorrorEscape.Managers.EscapeMissionManager.Instance.OnKeyFound(keyDisplayName);
+            }
+
             Destroy(gameObject);
         }
     }

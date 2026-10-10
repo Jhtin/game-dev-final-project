@@ -96,6 +96,11 @@ namespace HorrorEscape.Interaction
                 HUDManager.Instance.ShowNotification("DISCOVERED: 9mm Army Pistol! Equipped to defense hand.");
             }
 
+            if (HorrorEscape.Managers.EscapeMissionManager.Instance != null)
+            {
+                HorrorEscape.Managers.EscapeMissionManager.Instance.OnGunFound("9mm Army Pistol");
+            }
+
             Destroy(gameObject);
         }
     }

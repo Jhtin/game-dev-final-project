@@ -53,31 +53,36 @@ namespace HorrorEscape.Interaction
             }
         }
 
+        private bool CanUnlockExit()
+        {
+            if (EscapeMissionManager.Instance != null && EscapeMissionManager.Instance.HasEscapeKey) return true;
+            if (GameManager.Instance != null && (GameManager.Instance.HasKey("EscapeKey") || GameManager.Instance.HasKey("MaintenanceKeycard"))) return true;
+            if (isPowered || (GameplayDirector.Instance != null && GameplayDirector.Instance.IsPowerRestored)) return true;
+            return false;
+        }
+
         public string GetInteractionPrompt()
         {
             if (isOpen) return "[Open] Escape Threshold";
 
-            bool powered = isPowered || (GameplayDirector.Instance != null && GameplayDirector.Instance.IsPowerRestored);
-            if (!powered)
+            if (!CanUnlockExit())
             {
-                return "[Locked] Emergency Exit (Power Grid Offline)";
+                return "[Locked] The door is locked. Find the key.";
             }
 
-            return "[E] Open Emergency Exit & Escape!";
+            return "[E] Unlock Exit Door & Escape!";
         }
 
         private void OnTriggerEnter(Collider other)
         {
             if (other.CompareTag("Player") || other.GetComponent<CharacterController>() != null || other.GetComponent<PlayerInteraction>() != null)
             {
-                bool powered = isPowered || (GameplayDirector.Instance != null && GameplayDirector.Instance.IsPowerRestored);
-
-                if (powered && !hasNotifiedExitFound)
+                if (CanUnlockExit() && !hasNotifiedExitFound)
                 {
                     hasNotifiedExitFound = true;
                     if (HUDManager.Instance != null)
                     {
-                        HUDManager.Instance.ShowNotification("EXIT FOUND");
+                        HUDManager.Instance.ShowNotification("EXIT FOUND - UNLOCK TO ESCAPE");
                     }
                 }
             }
@@ -87,9 +92,7 @@ namespace HorrorEscape.Interaction
         {
             if (isOpen) return;
 
-            bool powered = isPowered || (GameplayDirector.Instance != null && GameplayDirector.Instance.IsPowerRestored);
-
-            if (powered)
+            if (CanUnlockExit())
             {
                 StartCoroutine(OpenExitRoutine());
             }
@@ -97,7 +100,7 @@ namespace HorrorEscape.Interaction
             {
                 if (HUDManager.Instance != null)
                 {
-                    HUDManager.Instance.ShowNotification("Exit is locked! Restore facility power in the Maintenance Room first.");
+                    HUDManager.Instance.ShowNotification("The door is locked. Find the key.");
                 }
                 if (AudioManager.Instance != null)
                 {
@@ -146,7 +149,11 @@ namespace HorrorEscape.Interaction
             yield return new WaitForSeconds(0.2f);
 
             // Trigger escape victory sequence
-            if (GameplayDirector.Instance != null)
+            if (EscapeMissionManager.Instance != null)
+            {
+                EscapeMissionManager.Instance.OnPlayerEscaped();
+            }
+            else if (GameplayDirector.Instance != null)
             {
                 GameplayDirector.Instance.OnPlayerEscaped();
             }

@@ -91,6 +91,11 @@ namespace HorrorEscape.Interaction
                 AudioManager.Instance.Play2D(AudioManager.Instance.itemPickupClip, 0.9f, 1.2f);
             }
 
+            if (HorrorEscape.Managers.EscapeMissionManager.Instance != null)
+            {
+                HorrorEscape.Managers.EscapeMissionManager.Instance.OnGunFound("Tactical SMG");
+            }
+
             Destroy(gameObject);
         }
     }

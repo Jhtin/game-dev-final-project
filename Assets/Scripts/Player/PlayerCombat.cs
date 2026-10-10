@@ -215,6 +215,11 @@ namespace HorrorEscape.Player
             {
                 HUDManager.Instance.ShowNotification("NEW WEAPON ACQUIRED: 9mm Army Pistol! Emergency defense unlocked.");
             }
+
+            if (EscapeMissionManager.Instance != null)
+            {
+                EscapeMissionManager.Instance.OnGunFound("9mm Army Pistol");
+            }
         }
 
         public void UnlockSMG(int startingAmmo = 20, int startingReserve = 20)
@@ -242,6 +247,11 @@ namespace HorrorEscape.Player
             if (HUDManager.Instance != null)
             {
                 HUDManager.Instance.ShowNotification("NEW WEAPON ACQUIRED: Tactical Submachine Gun! Press [1] / [2] to switch.");
+            }
+
+            if (EscapeMissionManager.Instance != null)
+            {
+                EscapeMissionManager.Instance.OnGunFound("Tactical SMG");
             }
         }
 

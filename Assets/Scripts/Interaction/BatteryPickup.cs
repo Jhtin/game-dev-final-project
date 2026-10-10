@@ -92,6 +92,11 @@ namespace HorrorEscape.Interaction
                 HUDManager.Instance.ShowNotification($"Battery Recharged (+{rechargeAmount}%)");
             }
 
+            if (HorrorEscape.Managers.EscapeMissionManager.Instance != null)
+            {
+                HorrorEscape.Managers.EscapeMissionManager.Instance.OnBatteryCollected();
+            }
+
             Destroy(gameObject);
         }
     }

@@ -245,8 +245,15 @@ namespace HorrorEscape.UI
                 HorrorEscape.Inventory.InventoryManager.Instance.OnEquipChanged += (slot) => RefreshInventoryUI();
             }
 
-            int req = GameManager.Instance != null ? GameManager.Instance.RequiredObjectiveCount : 0;
-            UpdateObjectiveText(0, req);
+            if (HorrorEscape.Managers.EscapeMissionManager.Instance != null)
+            {
+                HorrorEscape.Managers.EscapeMissionManager.Instance.UpdateHUD();
+            }
+            else
+            {
+                int req = GameManager.Instance != null ? GameManager.Instance.RequiredObjectiveCount : 0;
+                UpdateObjectiveText(0, req);
+            }
             UpdateHealth(100f, 100f);
         }
 
@@ -873,6 +880,12 @@ namespace HorrorEscape.UI
 
         public void UpdateObjectiveText(int current, int required)
         {
+            if (HorrorEscape.Managers.EscapeMissionManager.Instance != null)
+            {
+                HorrorEscape.Managers.EscapeMissionManager.Instance.UpdateHUD();
+                return;
+            }
+
             if (required <= 0)
             {
                 SetObjective("Find a way out.");
@@ -881,6 +894,35 @@ namespace HorrorEscape.UI
             {
                 SetObjective($"Locate emergency fuses ({current}/{required}).");
             }
+        }
+
+        public void UpdateObjectiveChecklist(bool hasGun, bool hasBatteries, bool hasKey, bool hasEscaped)
+        {
+            if (objectiveHeaderText != null)
+            {
+                objectiveHeaderText.text = "ESCAPE OBJECTIVES";
+                objectiveHeaderText.color = ColorMutedTan;
+            }
+
+            if (objectiveBodyText == null) return;
+
+            string gunLine = hasGun
+                ? "<color=#55E868>[✓] Find a gun</color>"
+                : "<color=#D8D0C0>[  ] Find a gun</color>";
+
+            string batteryLine = hasBatteries
+                ? "<color=#55E868>[✓] Find flashlight batteries</color>"
+                : "<color=#D8D0C0>[  ] Find flashlight batteries</color>";
+
+            string keyLine = hasKey
+                ? "<color=#55E868>[✓] Find the escape key</color>"
+                : "<color=#D8D0C0>[  ] Find the escape key</color>";
+
+            string exitLine = hasEscaped
+                ? "<color=#55E868>[✓] Unlock the exit door and escape</color>"
+                : "<color=#D8D0C0>[  ] Unlock the exit door and escape</color>";
+
+            objectiveBodyText.text = $"{gunLine}\n{batteryLine}\n{keyLine}\n{exitLine}";
         }
 
         public void ShowObjectiveBanner(string title, string subtitle)
@@ -1257,18 +1299,18 @@ namespace HorrorEscape.UI
                 prt.anchorMax = new Vector2(0f, 1f);
                 prt.pivot = new Vector2(0f, 1f);
                 prt.anchoredPosition = new Vector2(28f, -28f);
-                prt.sizeDelta = new Vector2(460f, 78f);
+                prt.sizeDelta = new Vector2(360f, 135f);
 
                 // Header Text
                 GameObject headerGO = new GameObject("ObjectiveHeader");
                 headerGO.transform.SetParent(objPanel.transform, false);
                 objectiveHeaderText = headerGO.AddComponent<Text>();
                 objectiveHeaderText.font = font;
-                objectiveHeaderText.fontSize = 15;
+                objectiveHeaderText.fontSize = 13;
                 objectiveHeaderText.fontStyle = FontStyle.Bold;
                 objectiveHeaderText.alignment = TextAnchor.UpperLeft;
                 objectiveHeaderText.color = ColorMutedTan;
-                objectiveHeaderText.text = "OBJECTIVE";
+                objectiveHeaderText.text = "ESCAPE OBJECTIVES";
                 objectiveHeaderText.raycastTarget = false;
                 RectTransform hrt = headerGO.GetComponent<RectTransform>();
                 hrt.anchorMin = new Vector2(0f, 1f);
@@ -1282,11 +1324,12 @@ namespace HorrorEscape.UI
                 bodyGO.transform.SetParent(objPanel.transform, false);
                 objectiveBodyText = bodyGO.AddComponent<Text>();
                 objectiveBodyText.font = font;
-                objectiveBodyText.fontSize = 18;
-                objectiveBodyText.fontStyle = FontStyle.Bold;
+                objectiveBodyText.fontSize = 14;
+                objectiveBodyText.lineSpacing = 1.15f;
+                objectiveBodyText.fontStyle = FontStyle.Normal;
                 objectiveBodyText.alignment = TextAnchor.UpperLeft;
                 objectiveBodyText.color = ColorPaperOffWhite;
-                objectiveBodyText.text = "FIND A WAY OUT.";
+                objectiveBodyText.text = "[  ] Find a gun\n[  ] Find flashlight batteries\n[  ] Find the escape key\n[  ] Unlock the exit door and escape";
                 objectiveBodyText.raycastTarget = false;
                 RectTransform brt = bodyGO.GetComponent<RectTransform>();
                 brt.anchorMin = new Vector2(0f, 0f);
@@ -1986,7 +2029,7 @@ namespace HorrorEscape.UI
             victoryTitleText.fontStyle = FontStyle.Bold;
             victoryTitleText.alignment = TextAnchor.MiddleCenter;
             victoryTitleText.color = ColorSystemGreen;
-            victoryTitleText.text = "EXIT FOUND";
+            victoryTitleText.text = "YOU ESCAPED THE BACKROOMS";
             RectTransform trt = titleGO.GetComponent<RectTransform>();
             trt.anchoredPosition = new Vector2(0f, 110f);
             trt.sizeDelta = new Vector2(460f, 36f);
@@ -1998,7 +2041,7 @@ namespace HorrorEscape.UI
             sub.fontSize = 13;
             sub.alignment = TextAnchor.MiddleCenter;
             sub.color = ColorPaperOffWhite;
-            sub.text = "FACILITY SURVIVED // EXIT DOOR UNLOCKED";
+            sub.text = "MISSION ACCOMPLISHED // LEVEL 0 SURVIVED";
             RectTransform srt = subGO.GetComponent<RectTransform>();
             srt.anchoredPosition = new Vector2(0f, 65f);
             srt.sizeDelta = new Vector2(460f, 36f);
@@ -2015,7 +2058,7 @@ namespace HorrorEscape.UI
             ttrt.anchoredPosition = new Vector2(0f, 20f);
             ttrt.sizeDelta = new Vector2(460f, 26f);
 
-            CreatePSXButton(box, "PlayAgainBtn", new Vector2(0f, -40f), new Vector2(240f, 42f), "CONTINUE", font, () => GameManager.Instance.RestartGame());
+            CreatePSXButton(box, "PlayAgainBtn", new Vector2(0f, -40f), new Vector2(240f, 42f), "RESTART MISSION", font, () => GameManager.Instance.RestartGame());
             CreatePSXButton(box, "MenuBtn", new Vector2(0f, -100f), new Vector2(240f, 42f), "MAIN MENU", font, () => SceneManager.LoadScene(0));
 
             vicRoot.SetActive(false);

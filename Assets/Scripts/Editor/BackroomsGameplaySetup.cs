@@ -55,22 +55,25 @@ namespace HorrorEscape.Editor
 
         [MenuItem("Backrooms/Create New Fixed Scene (BackroomsFixedLevel)")]
         [MenuItem("Tools/Create New Fixed Scene (BackroomsFixedLevel)")]
+        [MenuItem("Backrooms/Rebuild Escape Mission Level (BackroomsFixedLevel)")]
+        [MenuItem("Tools/Rebuild Escape Mission Level (BackroomsFixedLevel)")]
         public static void CreateNewFixedSceneMenu()
         {
             CreateNewFixedScene();
 
             if (!Application.isBatchMode)
             {
-                EditorUtility.DisplayDialog("Backrooms Fixed Level Created",
-                    "Brand new 'BackroomsFixedLevel.unity' scene successfully created and configured!\n\n" +
-                    "- 32x32 Procedural Maze with safe corridors\n" +
-                    "- Authentic Army Pistol & Tactical Rifle models & viewmodels (centering offset fixed)\n" +
-                    "- Maintenance Workbench with SMG, ammo, and battery\n" +
-                    "- Ground pickups with realistic gravity physics (no floating!)\n" +
-                    "- Drop items with [G] key\n" +
-                    "- Repaired objective flow: Keycard on open floor + Wall-mounted Breaker Box\n" +
-                    "- Hiding Cabinets along room walls with auto-closing door animation\n" +
-                    "- Stalker AI flees 12s when player hides\n" +
+                EditorUtility.DisplayDialog("Backrooms Escape Mission Level Created",
+                    "Brand new 'BackroomsFixedLevel.unity' escape mission scene successfully configured!\n\n" +
+                    "Objective Checklist:\n" +
+                    "  [ ] Find a gun (9mm Army Pistol & Tactical Rifle)\n" +
+                    "  [ ] Find flashlight batteries (7 batteries across maze)\n" +
+                    "  [ ] Find the escape key (brass 3D key on open pedestal)\n" +
+                    "  [ ] Unlock the exit door and escape (locked until key found!)\n\n" +
+                    "Features:\n" +
+                    "- Authentic Door, Cabinet & Locker Sound Pack integration\n" +
+                    "- Ground pickups with realistic gravity physics\n" +
+                    "- Hiding Cabinets with auto-closing doors & fleeing enemy\n" +
                     "- Player Jump feature enabled ([Space])\n" +
                     "- NavMesh baked cleanly!", "OK");
             }
@@ -270,6 +273,13 @@ namespace HorrorEscape.Editor
             {
                 GameObject go = new GameObject("InventoryManager");
                 invMgr = go.AddComponent<HorrorEscape.Inventory.InventoryManager>();
+            }
+
+            HorrorEscape.Managers.EscapeMissionManager missionMgr = UnityEngine.Object.FindFirstObjectByType<HorrorEscape.Managers.EscapeMissionManager>();
+            if (missionMgr == null)
+            {
+                GameObject go = new GameObject("EscapeMissionManager");
+                missionMgr = go.AddComponent<HorrorEscape.Managers.EscapeMissionManager>();
             }
         }
 
@@ -576,20 +586,20 @@ namespace HorrorEscape.Editor
             var exclusions = new List<Vector3>();
             var placedObjects = new List<Vector3>();
 
-            // 1. Maintenance Keycard (Phase 3 Access Item) on Open Walkable Floor Pedestal (Never inside pillars!)
-            Vector2Int keycardCell = GetOpenRoomCell(gen, keycardRoom);
-            Vector3 keycardPos = CellWorldPos(keycardCell, cs, 0.45f);
-            exclusions.Add(keycardPos);
+            // 1. Escape Key (Objective 3) on Open Walkable Floor Pedestal (Never inside pillars!)
+            Vector2Int keyCell = GetOpenRoomCell(gen, keycardRoom);
+            Vector3 keyPos = CellWorldPos(keyCell, cs, 0.45f);
+            exclusions.Add(keyPos);
 
-            // Table / Pedestal for Keycard standing on open floor
+            // Table / Pedestal for Key standing on open floor
             GameObject table = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            table.name = "Keycard_Pedestal";
+            table.name = "EscapeKey_Pedestal";
             table.transform.SetParent(propsRoot.transform, false);
-            table.transform.position = keycardPos - new Vector3(0f, 0.22f, 0f);
+            table.transform.position = keyPos - new Vector3(0f, 0.22f, 0f);
             table.transform.localScale = new Vector3(0.9f, 0.45f, 0.9f);
             if (wallMat != null) table.GetComponent<MeshRenderer>().sharedMaterial = wallMat;
 
-            CreateKeycardPickup(propsRoot, keycardPos);
+            CreateEscapeKeyPickup(propsRoot, keyPos);
 
             // 2. Maintenance Room Breaker Box (Phase 4 Switch) mounted flush against verified solid room wall
             Vector3 breakerPos;
@@ -868,6 +878,90 @@ namespace HorrorEscape.Editor
                 if (anim != null) UnityEngine.Object.DestroyImmediate(anim);
                 foreach (var col in model.GetComponentsInChildren<Collider>()) UnityEngine.Object.DestroyImmediate(col);
             }
+        }
+
+        private static void CreateEscapeKeyPickup(GameObject parent, Vector3 pos)
+        {
+            GameObject root = new GameObject("Pickup_EscapeKey");
+            root.transform.SetParent(parent.transform, false);
+            root.transform.position = pos;
+
+            BoxCollider box = root.AddComponent<BoxCollider>();
+            box.isTrigger = true;
+            box.center = new Vector3(0f, 0.12f, 0f);
+            box.size = new Vector3(0.6f, 0.5f, 0.6f);
+
+            KeyPickup key = root.AddComponent<KeyPickup>();
+            SerializedObject so = new SerializedObject(key);
+            so.FindProperty("keyId").stringValue = "EscapeKey";
+            so.FindProperty("keyDisplayName").stringValue = "Escape Key";
+            so.FindProperty("isObjectiveItem").boolValue = true;
+            so.ApplyModifiedProperties();
+
+            root.AddComponent<GroundItemPhysics>();
+
+            // Create authentic 3D brass key visual using M_Key material
+            Material keyMat = AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/M_Key.mat");
+            if (keyMat == null)
+            {
+                keyMat = new Material(Shader.Find("Standard"));
+                keyMat.color = new Color(0.95f, 0.78f, 0.22f);
+                keyMat.SetFloat("_Metallic", 0.85f);
+                keyMat.SetFloat("_Glossiness", 0.65f);
+                AssetDatabase.CreateAsset(keyMat, "Assets/Materials/M_Key.mat");
+            }
+
+            GameObject modelRoot = new GameObject("Model_EscapeKey");
+            modelRoot.transform.SetParent(root.transform, false);
+            modelRoot.transform.localPosition = new Vector3(0f, 0.05f, 0f);
+            modelRoot.transform.localRotation = Quaternion.Euler(0f, 30f, 0f);
+
+            // Shaft
+            GameObject shaft = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            shaft.name = "KeyShaft";
+            shaft.transform.SetParent(modelRoot.transform, false);
+            shaft.transform.localPosition = new Vector3(0f, 0f, 0.04f);
+            shaft.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+            shaft.transform.localScale = new Vector3(0.04f, 0.14f, 0.04f);
+            shaft.GetComponent<MeshRenderer>().sharedMaterial = keyMat;
+            UnityEngine.Object.DestroyImmediate(shaft.GetComponent<Collider>());
+
+            // Ring (bow)
+            GameObject bow = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            bow.name = "KeyBow";
+            bow.transform.SetParent(modelRoot.transform, false);
+            bow.transform.localPosition = new Vector3(0f, 0f, -0.12f);
+            bow.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+            bow.transform.localScale = new Vector3(0.12f, 0.02f, 0.12f);
+            bow.GetComponent<MeshRenderer>().sharedMaterial = keyMat;
+            UnityEngine.Object.DestroyImmediate(bow.GetComponent<Collider>());
+
+            // Teeth
+            GameObject bit1 = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            bit1.name = "KeyBit1";
+            bit1.transform.SetParent(modelRoot.transform, false);
+            bit1.transform.localPosition = new Vector3(0.04f, 0f, 0.14f);
+            bit1.transform.localScale = new Vector3(0.05f, 0.02f, 0.04f);
+            bit1.GetComponent<MeshRenderer>().sharedMaterial = keyMat;
+            UnityEngine.Object.DestroyImmediate(bit1.GetComponent<Collider>());
+
+            GameObject bit2 = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            bit2.name = "KeyBit2";
+            bit2.transform.SetParent(modelRoot.transform, false);
+            bit2.transform.localPosition = new Vector3(0.04f, 0f, 0.08f);
+            bit2.transform.localScale = new Vector3(0.04f, 0.02f, 0.03f);
+            bit2.GetComponent<MeshRenderer>().sharedMaterial = keyMat;
+            UnityEngine.Object.DestroyImmediate(bit2.GetComponent<Collider>());
+
+            // Subtle warm glint light for visibility
+            GameObject lightGO = new GameObject("KeyGlowLight");
+            lightGO.transform.SetParent(modelRoot.transform, false);
+            lightGO.transform.localPosition = new Vector3(0f, 0.15f, 0f);
+            Light glint = lightGO.AddComponent<Light>();
+            glint.type = LightType.Point;
+            glint.color = new Color(1.0f, 0.85f, 0.35f);
+            glint.intensity = 0.85f;
+            glint.range = 2.2f;
         }
 
         private static void CreateKeycardPickup(GameObject parent, Vector3 pos)
