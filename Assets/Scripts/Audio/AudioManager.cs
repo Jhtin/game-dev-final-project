@@ -562,7 +562,7 @@ namespace HorrorEscape.Audio
                 data[i] = sample;
             }
 
-            AudioClip clip = AudioClip.Create("Procedural_Heartbeat", lengthSamples, 1, sampleRate, true);
+            AudioClip clip = AudioClip.Create("Procedural_Heartbeat", lengthSamples, 1, sampleRate, false);
             clip.SetData(data, 0);
             return clip;
         }
@@ -585,7 +585,7 @@ namespace HorrorEscape.Audio
                 data[i] = (hum60 + hum120 + hum180 + buzz + hiss) * 0.5f;
             }
 
-            AudioClip clip = AudioClip.Create("Procedural_FluorescentHum", lengthSamples, 1, sampleRate, true);
+            AudioClip clip = AudioClip.Create("Procedural_FluorescentHum", lengthSamples, 1, sampleRate, false);
             clip.SetData(data, 0);
             return clip;
         }

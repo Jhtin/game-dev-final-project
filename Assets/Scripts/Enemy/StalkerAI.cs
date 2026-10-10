@@ -79,6 +79,7 @@ namespace HorrorEscape.Enemy
         private float stateTimer;
         private float lostSightTimer;
         private Vector3 lastKnownPlayerPos;
+        private Vector3 patrolDestination;
         private bool hasDetectedPlayer;
         private float soundReactionCooldown;
 
@@ -90,6 +91,9 @@ namespace HorrorEscape.Enemy
 
         private void Awake()
         {
+            // Guarantee valid NavMesh exists in scene
+            RuntimeNavMeshBaker.EnsureNavMesh();
+
             agent = GetComponent<NavMeshAgent>();
             if (animator == null)
             {
@@ -100,6 +104,12 @@ namespace HorrorEscape.Enemy
             // Proximity vocalisations from the Backrooms Entity SFX pack
             entityAudio = GetComponent<EntityProximityAudio>();
             if (entityAudio == null) entityAudio = gameObject.AddComponent<EntityProximityAudio>();
+
+            // Ensure Blackout Zone is attached to plunge nearby lights into darkness
+            if (GetComponent<EntityBlackoutZone>() == null)
+            {
+                gameObject.AddComponent<EntityBlackoutZone>();
+            }
         }
 
         /// <summary>
@@ -122,14 +132,19 @@ namespace HorrorEscape.Enemy
         private void Start()
         {
             FindPlayerReferences();
+            EnsureOnNavMesh();
+            SetState(StalkerState.Patrol);
+        }
+
+        private void EnsureOnNavMesh()
+        {
             if (agent != null && !agent.isOnNavMesh)
             {
-                if (NavMesh.SamplePosition(transform.position, out NavMeshHit hit, 6.0f, NavMesh.AllAreas))
+                if (NavMesh.SamplePosition(transform.position, out NavMeshHit hit, 25.0f, NavMesh.AllAreas))
                 {
                     agent.Warp(hit.position);
                 }
             }
-            SetState(StalkerState.Patrol);
         }
 
         private void FindPlayerReferences()
@@ -148,9 +163,11 @@ namespace HorrorEscape.Enemy
 
             if (GameManager.Instance != null && GameManager.Instance.IsGameOver)
             {
-                agent.isStopped = true;
+                if (agent != null && agent.isOnNavMesh) agent.isStopped = true;
                 return;
             }
+
+            EnsureOnNavMesh();
 
             if (playerTransform == null)
             {
@@ -190,22 +207,61 @@ namespace HorrorEscape.Enemy
 
         private void UpdateAnimator()
         {
-            if (animator == null || agent == null) return;
+            if (animator == null) return;
 
-            float currentSpeed = agent.velocity.magnitude;
-            float speedParam = 0f;
-            if (currentSpeed > 0.1f)
+            if (agent != null && agent.isOnNavMesh)
             {
-                if (currentSpeed <= patrolSpeed)
+                float currentSpeed = agent.velocity.magnitude;
+                float speedParam = 0f;
+                if (currentSpeed > 0.1f)
                 {
-                    speedParam = Mathf.Lerp(0f, 1f, currentSpeed / patrolSpeed);
+                    if (currentSpeed <= patrolSpeed)
+                    {
+                        speedParam = Mathf.Lerp(0f, 1f, currentSpeed / patrolSpeed);
+                    }
+                    else
+                    {
+                        speedParam = Mathf.Lerp(1f, 2f, Mathf.Clamp01((currentSpeed - patrolSpeed) / Mathf.Max(0.1f, chaseSpeed - patrolSpeed)));
+                    }
+                }
+                animator.SetFloat("Speed", speedParam);
+            }
+        }
+
+        private void FallbackKinematicMovement(Vector3 targetPosition, float speed)
+        {
+            Vector3 toTarget = targetPosition - transform.position;
+            toTarget.y = 0f;
+            float dist = toTarget.magnitude;
+
+            if (dist > 0.3f)
+            {
+                Quaternion targetRot = Quaternion.LookRotation(toTarget.normalized);
+                transform.rotation = Quaternion.Slerp(transform.rotation, targetRot, Time.deltaTime * 6.0f);
+
+                Vector3 moveStep = transform.forward * (speed * Time.deltaTime);
+                Vector3 origin = transform.position + Vector3.up * 0.9f;
+
+                if (!Physics.SphereCast(origin, 0.4f, transform.forward, out RaycastHit hit, moveStep.magnitude + 0.2f, sightObstacles, QueryTriggerInteraction.Ignore))
+                {
+                    transform.position += moveStep;
                 }
                 else
                 {
-                    speedParam = Mathf.Lerp(1f, 2f, Mathf.Clamp01((currentSpeed - patrolSpeed) / Mathf.Max(0.1f, chaseSpeed - patrolSpeed)));
+                    Vector3 slideDir = Vector3.ProjectOnPlane(transform.forward, hit.normal).normalized;
+                    transform.position += slideDir * (speed * 0.7f * Time.deltaTime);
+                }
+
+                if (animator != null)
+                {
+                    float speedParam = (speed > patrolSpeed + 0.1f) ? 2.0f : 1.0f;
+                    animator.SetFloat("Speed", speedParam);
                 }
             }
-            animator.SetFloat("Speed", speedParam);
+            else
+            {
+                if (animator != null) animator.SetFloat("Speed", 0f);
+            }
         }
 
         private void CheckVision()
@@ -217,21 +273,41 @@ namespace HorrorEscape.Enemy
             Vector3 dirToPlayer = targetPos - eyePos;
             float distToPlayer = dirToPlayer.magnitude;
 
-            // Compute effective detection range based on stealth & flashlight
-            float maxRange = baseViewDistance;
-            if (playerFlashlight != null && playerFlashlight.IsOn)
+            // Flashlight detection: entity immediately spots the bright beam down the corridor!
+            if (playerFlashlight != null && playerFlashlight.IsOn && distToPlayer <= flashlightViewDistance)
             {
-                maxRange = flashlightViewDistance;
+                lastKnownPlayerPos = playerTransform.position;
+                lostSightTimer = lostSightGraceDuration;
+                if (currentState != StalkerState.Chase)
+                {
+                    OnSpotPlayer();
+                    return;
+                }
             }
+
+            // Proximity auditory / scent awareness: entity senses player around corridor corners
+            float senseRadius = playerController != null && playerController.IsCrouching ? 5.0f : 12.0f;
+            if (distToPlayer <= senseRadius)
+            {
+                lastKnownPlayerPos = playerTransform.position;
+                lostSightTimer = lostSightGraceDuration;
+                if (currentState != StalkerState.Chase)
+                {
+                    OnSpotPlayer();
+                    return;
+                }
+            }
+
+            // Compute effective detection range based on stealth & angle
+            float maxRange = baseViewDistance;
             if (playerController != null && playerController.IsCrouching)
             {
-                maxRange *= 0.55f; // Stealth crouching reduces detection distance!
+                maxRange *= 0.55f;
             }
 
             if (distToPlayer <= maxRange)
             {
                 float angle = Vector3.Angle(transform.forward, dirToPlayer);
-                // Also detect if player is close behind monster or around tight corridor corners (within 4.5m)
                 bool isVeryClose = distToPlayer < 4.5f;
 
                 if (angle < fieldOfViewAngle * 0.5f || isVeryClose)
@@ -240,7 +316,6 @@ namespace HorrorEscape.Enemy
                     bool hasDirectLOS = false;
                     if (Physics.Raycast(eyePos, dirToPlayer.normalized, out RaycastHit hit, distToPlayer + 0.5f, sightObstacles, QueryTriggerInteraction.Ignore))
                     {
-                        // Check if hit object is the player, player's controller, or child of player
                         if (hit.transform == playerTransform || hit.transform.IsChildOf(playerTransform) || 
                             hit.collider.CompareTag("Player") || hit.collider.GetComponentInParent<FirstPersonController>() != null)
                         {
@@ -249,7 +324,6 @@ namespace HorrorEscape.Enemy
                     }
                     else
                     {
-                        // Unobstructed path to player position
                         hasDirectLOS = true;
                     }
 
@@ -266,23 +340,10 @@ namespace HorrorEscape.Enemy
                 }
             }
 
-            // Proximity auditory/scent awareness: if within 6.5m in corridors, monster senses player presence!
-            if (distToPlayer < 6.5f && (!playerController.IsCrouching || distToPlayer < 3.0f))
-            {
-                lastKnownPlayerPos = playerTransform.position;
-                lostSightTimer = lostSightGraceDuration;
-                if (currentState != StalkerState.Chase)
-                {
-                    OnSpotPlayer();
-                    return;
-                }
-            }
-
             // If we were chasing but lost direct LOS (e.g. player rounded a corner)
             if (currentState == StalkerState.Chase)
             {
                 lostSightTimer -= Time.deltaTime;
-                // While grace duration remains active, KEEP PURSUING relentlessly!
                 if (lostSightTimer > 0f)
                 {
                     if (agent != null && agent.isOnNavMesh)
@@ -291,10 +352,13 @@ namespace HorrorEscape.Enemy
                         agent.isStopped = false;
                         agent.SetDestination(playerTransform.position);
                     }
+                    else
+                    {
+                        FallbackKinematicMovement(playerTransform.position, chaseSpeed);
+                    }
                     return;
                 }
 
-                // Grace duration expired: transition to search mode at last known spot
                 SetState(StalkerState.Search);
             }
         }
@@ -310,7 +374,6 @@ namespace HorrorEscape.Enemy
         {
             if (isDormant || isFleeing || currentState == StalkerState.Attack || currentState == StalkerState.Stunned) return;
 
-            // If already chasing, hearing noise updates the pursuit destination and resets grace timer
             if (currentState == StalkerState.Chase)
             {
                 lastKnownPlayerPos = noiseOrigin;
@@ -327,7 +390,6 @@ namespace HorrorEscape.Enemy
             lastKnownPlayerPos = noiseOrigin;
 
             float dist = Vector3.Distance(transform.position, noiseOrigin);
-            // If sprint or gunshot noise is close (< 8m), break into a full chase immediately!
             if (dist < 8.0f)
             {
                 lostSightTimer = lostSightGraceDuration;
@@ -365,6 +427,7 @@ namespace HorrorEscape.Enemy
                     case StalkerState.Chase:
                         agent.speed = chaseSpeed;
                         agent.isStopped = false;
+                        if (playerTransform != null) agent.SetDestination(playerTransform.position);
                         break;
 
                     case StalkerState.Search:
@@ -388,38 +451,70 @@ namespace HorrorEscape.Enemy
                         break;
                 }
             }
-            else if (newState == StalkerState.Attack)
+            else
             {
-                StartCoroutine(ExecuteKillSequence());
+                switch (newState)
+                {
+                    case StalkerState.Patrol:
+                        MoveToNextPatrolPoint();
+                        break;
+                    case StalkerState.Attack:
+                        StartCoroutine(ExecuteKillSequence());
+                        break;
+                }
             }
         }
 
         private void UpdatePatrolState()
         {
-            if (agent == null || !agent.isOnNavMesh) return;
-            if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance + 0.4f)
+            stateTimer += Time.deltaTime;
+            bool reached = false;
+
+            if (agent != null && agent.isOnNavMesh)
             {
-                stateTimer += Time.deltaTime;
-                if (stateTimer >= 0.8f) // Brief pause to listen, then keep stalking!
-                {
-                    stateTimer = 0f;
-                    MoveToNextPatrolPoint();
-                }
+                reached = !agent.pathPending && agent.remainingDistance <= agent.stoppingDistance + 0.5f;
+            }
+            else
+            {
+                FallbackKinematicMovement(patrolDestination, patrolSpeed);
+                reached = Vector3.Distance(transform.position, patrolDestination) <= 1.5f;
+            }
+
+            // Stalk towards next area upon reaching destination or 6 second corridor hunt timeout
+            if (reached || stateTimer >= 6.0f)
+            {
+                stateTimer = 0f;
+                MoveToNextPatrolPoint();
             }
         }
 
         private void MoveToNextPatrolPoint()
         {
-            if (agent == null || !agent.isOnNavMesh) return;
-
-            // 75% of the time, stalk actively towards the player's quadrant through labyrinth corridors!
-            if (playerTransform != null && Random.value < 0.75f)
+            // Actively hunt in the player's direction through the Backrooms maze!
+            if (playerTransform != null)
             {
                 Vector3 dirToPlayer = (playerTransform.position - transform.position).normalized;
-                Vector3 huntTarget = transform.position + dirToPlayer * Random.Range(10f, 22f) + Random.insideUnitSphere * 4f;
-                if (NavMesh.SamplePosition(huntTarget, out NavMeshHit huntHit, 16f, NavMesh.AllAreas))
+                Vector3 huntTarget = transform.position + dirToPlayer * Random.Range(10f, 20f) + Random.insideUnitSphere * 3f;
+                huntTarget.y = transform.position.y;
+                patrolDestination = huntTarget;
+
+                if (agent != null && agent.isOnNavMesh)
                 {
-                    agent.SetDestination(huntHit.position);
+                    if (NavMesh.SamplePosition(huntTarget, out NavMeshHit huntHit, 16f, NavMesh.AllAreas))
+                    {
+                        agent.SetDestination(huntHit.position);
+                        patrolDestination = huntHit.position;
+                        return;
+                    }
+                    else if (NavMesh.SamplePosition(playerTransform.position, out NavMeshHit pHit, 16f, NavMesh.AllAreas))
+                    {
+                        agent.SetDestination(pHit.position);
+                        patrolDestination = pHit.position;
+                        return;
+                    }
+                }
+                else
+                {
                     return;
                 }
             }
@@ -429,31 +524,50 @@ namespace HorrorEscape.Enemy
                 Transform wp = waypoints[currentWaypointIndex];
                 if (wp != null)
                 {
-                    agent.SetDestination(wp.position);
+                    patrolDestination = wp.position;
+                    if (agent != null && agent.isOnNavMesh)
+                    {
+                        agent.SetDestination(wp.position);
+                    }
                 }
                 currentWaypointIndex = (currentWaypointIndex + 1) % waypoints.Count;
             }
             else
             {
-                // Roam randomly on NavMesh
                 Vector3 randomDirection = Random.insideUnitSphere * randomPatrolRadius;
                 randomDirection += transform.position;
-                if (NavMesh.SamplePosition(randomDirection, out NavMeshHit hit, randomPatrolRadius, NavMesh.AllAreas))
+                randomDirection.y = transform.position.y;
+                patrolDestination = randomDirection;
+
+                if (agent != null && agent.isOnNavMesh)
                 {
-                    agent.SetDestination(hit.position);
+                    if (NavMesh.SamplePosition(randomDirection, out NavMeshHit hit, randomPatrolRadius, NavMesh.AllAreas))
+                    {
+                        agent.SetDestination(hit.position);
+                        patrolDestination = hit.position;
+                    }
                 }
             }
         }
 
         private void UpdateInvestigateState()
         {
-            if (agent == null || !agent.isOnNavMesh) return;
-            if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance + 0.5f)
-            {
-                stateTimer += Time.deltaTime;
-                // Look around in place
-                transform.Rotate(Vector3.up * (45f * Time.deltaTime));
+            stateTimer += Time.deltaTime;
+            bool reached = false;
 
+            if (agent != null && agent.isOnNavMesh)
+            {
+                reached = !agent.pathPending && agent.remainingDistance <= agent.stoppingDistance + 0.5f;
+            }
+            else
+            {
+                FallbackKinematicMovement(lastKnownPlayerPos, investigateSpeed);
+                reached = Vector3.Distance(transform.position, lastKnownPlayerPos) <= 1.5f;
+            }
+
+            if (reached || stateTimer >= 5.0f)
+            {
+                transform.Rotate(Vector3.up * (45f * Time.deltaTime));
                 if (stateTimer >= 2.5f)
                 {
                     SetState(StalkerState.Patrol);
@@ -463,9 +577,17 @@ namespace HorrorEscape.Enemy
 
         private void UpdateChaseState()
         {
+            if (playerTransform == null) return;
+
             if (agent != null && agent.isOnNavMesh)
             {
+                agent.speed = chaseSpeed;
+                agent.isStopped = false;
                 agent.SetDestination(playerTransform.position);
+            }
+            else
+            {
+                FallbackKinematicMovement(playerTransform.position, chaseSpeed);
             }
             lastKnownPlayerPos = playerTransform.position;
 
@@ -598,12 +720,22 @@ namespace HorrorEscape.Enemy
 
         private void UpdateSearchState()
         {
-            if (agent == null || !agent.isOnNavMesh) return;
-            if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance + 0.5f)
-            {
-                stateTimer += Time.deltaTime;
-                transform.Rotate(Vector3.up * (40f * Time.deltaTime));
+            stateTimer += Time.deltaTime;
+            bool reached = false;
 
+            if (agent != null && agent.isOnNavMesh)
+            {
+                reached = !agent.pathPending && agent.remainingDistance <= agent.stoppingDistance + 0.5f;
+            }
+            else
+            {
+                FallbackKinematicMovement(lastKnownPlayerPos, patrolSpeed);
+                reached = Vector3.Distance(transform.position, lastKnownPlayerPos) <= 1.5f;
+            }
+
+            if (reached || stateTimer >= searchDuration)
+            {
+                transform.Rotate(Vector3.up * (40f * Time.deltaTime));
                 if (stateTimer >= searchDuration)
                 {
                     SetState(StalkerState.Patrol);

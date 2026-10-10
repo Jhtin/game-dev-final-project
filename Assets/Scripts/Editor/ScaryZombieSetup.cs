@@ -17,8 +17,21 @@ namespace HorrorEscape.Editor
     /// model with rotten flesh/decayed textures onto the Stalker Enemy in the Backrooms level.
     /// Also ensures duplicate enemy cleanup and scene stability.
     /// </summary>
+    [InitializeOnLoad]
     public static class ScaryZombieSetup
     {
+        static ScaryZombieSetup()
+        {
+            EditorApplication.delayCall += () =>
+            {
+                if (!SessionState.GetBool("ScaryZombieSetup_Executed_v3", false))
+                {
+                    SessionState.SetBool("ScaryZombieSetup_Executed_v3", true);
+                    SetupScaryZombieBatch();
+                }
+            };
+        }
+
         private const string ZombieFbxPath = "Assets/Characters/Zombie/zombie.fbx";
         private const string AnimDir = "Assets/Characters/Zombie/Animations";
         private const string ControllerPath = "Assets/Characters/Zombie/ZombieAnimatorController.controller";
@@ -476,10 +489,15 @@ namespace HorrorEscape.Editor
             col.radius = 0.45f;
             col.center = new Vector3(0f, 0.95f, 0f);
 
-            // 7. Configure StalkerAI
+            // 7. Configure StalkerAI & Blackout Zone
             StalkerAI stalkerAI = enemyGO.GetComponent<StalkerAI>();
             if (stalkerAI == null) stalkerAI = enemyGO.AddComponent<StalkerAI>();
             stalkerAI.SetAnimator(anim);
+
+            if (enemyGO.GetComponent<EntityBlackoutZone>() == null)
+            {
+                enemyGO.AddComponent<EntityBlackoutZone>();
+            }
 
             // Ensure waypoints are assigned
             Transform wpFar = GameObject.Find("WP_FarRoom")?.transform;
@@ -489,7 +507,15 @@ namespace HorrorEscape.Editor
             if (wpMaint != null) stalkerAI.AddWaypoint(wpMaint);
             if (wpKey != null) stalkerAI.AddWaypoint(wpKey);
 
-            // 8. Ensure InventoryManager is in the scene
+            // 8. Ensure RuntimeNavMeshBaker is in the scene
+            if (UnityEngine.Object.FindFirstObjectByType<RuntimeNavMeshBaker>() == null)
+            {
+                GameObject navBakerGO = new GameObject("RuntimeNavMeshBaker");
+                navBakerGO.AddComponent<RuntimeNavMeshBaker>();
+                Debug.Log("[ScaryZombieSetup] Added RuntimeNavMeshBaker to scene.");
+            }
+
+            // 9. Ensure InventoryManager is in the scene
             if (UnityEngine.Object.FindFirstObjectByType<InventoryManager>() == null)
             {
                 GameObject invGO = new GameObject("InventoryManager");
@@ -497,10 +523,21 @@ namespace HorrorEscape.Editor
                 Debug.Log("[ScaryZombieSetup] Created InventoryManager in scene.");
             }
 
+            // 10. Attempt static NavMesh bake
+            try
+            {
+                UnityEditor.NavMeshBuilder.BuildNavMesh();
+                Debug.Log("[ScaryZombieSetup] Static NavMesh baked successfully!");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning("[ScaryZombieSetup] Static NavMesh bake caught exception (RuntimeNavMeshBaker will handle at startup): " + ex.Message);
+            }
+
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene);
 
-            Debug.Log("[ScaryZombieSetup] Attached Authentic Mixamo Zombie Ch10 character and Animator to StalkerEnemy!");
+            Debug.Log("[ScaryZombieSetup] Attached Authentic Mixamo Zombie Ch10 character, Animator, and EntityBlackoutZone to StalkerEnemy!");
         }
     }
 }
