@@ -21,8 +21,7 @@ namespace HorrorEscape.Interaction
         [Header("Door & Hinge Settings")]
         [SerializeField] private Transform doorHinge;
         [SerializeField] private float openAngle = -95.0f;
-        [SerializeField] private float smoothSpeed = 5.0f;
-        [SerializeField] private float closedPeekAngle = 3.0f; // Leaves a tiny sliver gap for realistic peeking
+        [SerializeField] private float smoothSpeed = 7.0f;
 
         [Header("Player Anchors")]
         [SerializeField] private Transform interiorAnchor;
@@ -38,13 +37,12 @@ namespace HorrorEscape.Interaction
         [SerializeField] private bool isOccupied = false;
         [SerializeField] private bool isTransitioning = false;
 
-        private Quaternion closedRotation;
+        private Quaternion closedRotation = Quaternion.identity;
         private Quaternion openRotation;
-        private Quaternion targetDoorRotation;
+        private Quaternion targetDoorRotation = Quaternion.identity;
         private FirstPersonController hiddenPlayer;
         private FlashlightController playerFlashlight;
         private bool flashlightWasOn = false;
-        private Coroutine doorCoroutine;
         private AudioSource audioSource;
         private float tensionTimer = 0f;
 
@@ -56,11 +54,12 @@ namespace HorrorEscape.Interaction
             interiorAnchor = interior;
             exitAnchor = exit;
             openAngle = angle;
+            closedRotation = Quaternion.identity;
+            openRotation = Quaternion.Euler(0f, openAngle, 0f);
+            targetDoorRotation = closedRotation;
             if (doorHinge != null)
             {
-                closedRotation = doorHinge.localRotation;
-                openRotation = Quaternion.Euler(doorHinge.localEulerAngles + new Vector3(0f, openAngle, 0f));
-                targetDoorRotation = closedRotation;
+                doorHinge.localRotation = closedRotation;
             }
         }
 
@@ -73,9 +72,13 @@ namespace HorrorEscape.Interaction
                 else doorHinge = transform;
             }
 
-            closedRotation = doorHinge.localRotation;
-            openRotation = Quaternion.Euler(doorHinge.localEulerAngles + new Vector3(0f, openAngle, 0f));
+            closedRotation = Quaternion.identity;
+            openRotation = Quaternion.Euler(0f, openAngle, 0f);
             targetDoorRotation = closedRotation;
+            if (doorHinge != null)
+            {
+                doorHinge.localRotation = closedRotation;
+            }
 
             if (interiorAnchor == null)
             {
@@ -103,7 +106,7 @@ namespace HorrorEscape.Interaction
         private void Update()
         {
             // Smoothly swing door towards target rotation
-            if (doorHinge != null && Quaternion.Angle(doorHinge.localRotation, targetDoorRotation) > 0.1f)
+            if (doorHinge != null && Quaternion.Angle(doorHinge.localRotation, targetDoorRotation) > 0.05f)
             {
                 doorHinge.localRotation = Quaternion.Slerp(doorHinge.localRotation, targetDoorRotation, Time.deltaTime * smoothSpeed);
             }
@@ -225,10 +228,18 @@ namespace HorrorEscape.Interaction
                 hiddenPlayer.SetHiding(true, facingYaw);
             }
 
-            // 4. Swing door shut (leaves a tiny gap for peephole visibility)
-            Quaternion closedWithSliver = Quaternion.Euler(doorHinge.localEulerAngles + new Vector3(0f, closedPeekAngle, 0f));
-            targetDoorRotation = closedWithSliver;
+            // 4. Swing door shut on its own so the player is completely hidden inside
+            targetDoorRotation = closedRotation;
             PlayDoorSound(doorCloseClip != null ? doorCloseClip : (AudioManager.Instance != null ? AudioManager.Instance.doorCloseClip : null));
+
+            // Wait briefly for the door to visibly swing shut and latch
+            float shutTimer = 0f;
+            while (shutTimer < 0.4f)
+            {
+                shutTimer += Time.deltaTime;
+                yield return null;
+            }
+            if (doorHinge != null) doorHinge.localRotation = closedRotation;
 
             isOccupied = true;
             isTransitioning = false;
@@ -285,6 +296,14 @@ namespace HorrorEscape.Interaction
             // 4. Swing door shut behind player
             targetDoorRotation = closedRotation;
             PlayDoorSound(doorCloseClip != null ? doorCloseClip : (AudioManager.Instance != null ? AudioManager.Instance.doorCloseClip : null));
+
+            float exitShutTimer = 0f;
+            while (exitShutTimer < 0.35f)
+            {
+                exitShutTimer += Time.deltaTime;
+                yield return null;
+            }
+            if (doorHinge != null) doorHinge.localRotation = closedRotation;
 
             isOccupied = false;
             isTransitioning = false;
