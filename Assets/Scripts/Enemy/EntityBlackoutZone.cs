@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Rendering;
 using HorrorEscape.Audio;
 using HorrorEscape.Player;
 using HorrorEscape.UI;
@@ -39,7 +40,6 @@ namespace HorrorEscape.Enemy
 
         private List<TrackedLight> trackedLights = new List<TrackedLight>();
         private Color originalAmbientColor;
-        private AmbientMode originalAmbientMode;
 
         private Transform playerTransform;
         private FlashlightController playerFlashlight;
@@ -68,7 +68,6 @@ namespace HorrorEscape.Enemy
             FindPlayer();
             CacheSceneLights();
             originalAmbientColor = RenderSettings.ambientLight;
-            originalAmbientMode = RenderSettings.ambientMode;
         }
 
         private void FindPlayer()
@@ -217,7 +216,7 @@ namespace HorrorEscape.Enemy
             if (AudioManager.Instance != null)
             {
                 // Play electrical popping / power failure sound
-                AudioClip popClip = AudioManager.Instance.breakerToggleClip;
+                AudioClip popClip = AudioManager.Instance.powerRestoreClip;
                 if (popClip != null)
                 {
                     AudioManager.Instance.PlayAtPosition(popClip, transform.position, 1.0f, 30f);

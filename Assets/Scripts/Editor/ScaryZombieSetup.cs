@@ -523,15 +523,15 @@ namespace HorrorEscape.Editor
                 Debug.Log("[ScaryZombieSetup] Created InventoryManager in scene.");
             }
 
-            // 10. Attempt static NavMesh bake
+            // 10. Ensure dynamic NavMesh is initialized
             try
             {
-                UnityEditor.NavMeshBuilder.BuildNavMesh();
-                Debug.Log("[ScaryZombieSetup] Static NavMesh baked successfully!");
+                RuntimeNavMeshBaker.EnsureNavMesh();
+                Debug.Log("[ScaryZombieSetup] Dynamic NavMesh verified/generated!");
             }
             catch (Exception ex)
             {
-                Debug.LogWarning("[ScaryZombieSetup] Static NavMesh bake caught exception (RuntimeNavMeshBaker will handle at startup): " + ex.Message);
+                Debug.LogWarning("[ScaryZombieSetup] Dynamic NavMesh setup caught exception: " + ex.Message);
             }
 
             EditorSceneManager.MarkSceneDirty(scene);
