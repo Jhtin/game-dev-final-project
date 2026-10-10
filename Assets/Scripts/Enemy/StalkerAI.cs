@@ -268,16 +268,12 @@ namespace HorrorEscape.Enemy
         {
             if (isDormant || isFleeing || currentState == StalkerState.Attack || currentState == StalkerState.Stunned) return;
 
-            // 1. If player is hiding inside a cabinet / hiding spot, entity CANNOT detect them!
+            // 1. If player is hiding inside a cabinet / hiding spot, entity CANNOT detect them and runs away!
             if (playerController != null && playerController.IsHiding)
             {
-                if (currentState == StalkerState.Chase)
+                if (currentState == StalkerState.Chase || currentState == StalkerState.Investigate || currentState == StalkerState.Search)
                 {
-                    lostSightTimer -= Time.deltaTime;
-                    if (lostSightTimer <= 0f || Vector3.Distance(transform.position, lastKnownPlayerPos) < 2.0f)
-                    {
-                        SetState(StalkerState.Search);
-                    }
+                    OnPlayerEnteredHiding(playerTransform.position);
                 }
                 return;
             }
@@ -396,6 +392,7 @@ namespace HorrorEscape.Enemy
         public void OnHearNoise(Vector3 noiseOrigin)
         {
             if (isDormant || isFleeing || currentState == StalkerState.Attack || currentState == StalkerState.Stunned) return;
+            if (playerController != null && playerController.IsHiding) return;
 
             if (currentState == StalkerState.Chase)
             {
@@ -513,27 +510,25 @@ namespace HorrorEscape.Enemy
 
         private void MoveToNextPatrolPoint()
         {
-            // If player is hiding, entity actively patrols away from the hiding spot!
+            // If player is hiding, entity actively runs away from the hiding spot!
             if (playerController != null && playerController.IsHiding)
             {
-                if (waypoints.Count > 0)
+                float runSpeed = Mathf.Max(chaseSpeed * 1.15f, 3.5f);
+                if (agent != null && agent.isOnNavMesh)
                 {
-                    currentWaypointIndex = (currentWaypointIndex + 1) % waypoints.Count;
-                    Transform wp = waypoints[currentWaypointIndex];
-                    if (wp != null)
-                    {
-                        patrolDestination = wp.position;
-                        if (agent != null && agent.isOnNavMesh) agent.SetDestination(wp.position);
-                        return;
-                    }
+                    agent.speed = runSpeed;
                 }
 
                 if (playerTransform != null)
                 {
-                    Vector3 awayDir = (transform.position - playerTransform.position).normalized;
-                    Vector3 awayTarget = transform.position + awayDir * Random.Range(15f, 25f) + Random.insideUnitSphere * 4f;
+                    Vector3 awayDir = (transform.position - playerTransform.position);
+                    awayDir.y = 0f;
+                    if (awayDir.sqrMagnitude < 0.1f) awayDir = -transform.forward;
+                    awayDir.Normalize();
+
+                    Vector3 awayTarget = transform.position + awayDir * Random.Range(25f, 40f) + Random.insideUnitSphere * 4f;
                     awayTarget.y = transform.position.y;
-                    if (agent != null && agent.isOnNavMesh && NavMesh.SamplePosition(awayTarget, out NavMeshHit awayHit, 16f, NavMesh.AllAreas))
+                    if (agent != null && agent.isOnNavMesh && NavMesh.SamplePosition(awayTarget, out NavMeshHit awayHit, 20f, NavMesh.AllAreas))
                     {
                         patrolDestination = awayHit.position;
                         agent.SetDestination(awayHit.position);
@@ -604,6 +599,12 @@ namespace HorrorEscape.Enemy
 
         private void UpdateInvestigateState()
         {
+            if (playerController != null && playerController.IsHiding)
+            {
+                OnPlayerEnteredHiding(playerTransform != null ? playerTransform.position : lastKnownPlayerPos);
+                return;
+            }
+
             stateTimer += Time.deltaTime;
             bool reached = false;
 
@@ -631,24 +632,10 @@ namespace HorrorEscape.Enemy
         {
             if (playerTransform == null) return;
 
-            // If player just hid, stop chasing them directly; run to lastKnownPlayerPos then search
+            // If player just hid, immediately run away!
             if (playerController != null && playerController.IsHiding)
             {
-                if (agent != null && agent.isOnNavMesh)
-                {
-                    agent.speed = chaseSpeed;
-                    agent.isStopped = false;
-                    agent.SetDestination(lastKnownPlayerPos);
-                }
-                else
-                {
-                    FallbackKinematicMovement(lastKnownPlayerPos, chaseSpeed);
-                }
-
-                if (Vector3.Distance(transform.position, lastKnownPlayerPos) <= 1.8f)
-                {
-                    SetState(StalkerState.Search);
-                }
+                OnPlayerEnteredHiding(playerTransform.position);
                 return;
             }
 
@@ -712,6 +699,101 @@ namespace HorrorEscape.Enemy
             yield return new WaitForSeconds(duration);
 
             isFleeing = false;
+            SetState(StalkerState.Patrol);
+        }
+
+        private Coroutine fleeCoroutine;
+
+        public void OnPlayerEnteredHiding(Vector3 hidingSpotPosition)
+        {
+            if (currentState == StalkerState.Dead) return;
+            if (currentState == StalkerState.Attack && GameManager.Instance != null && GameManager.Instance.IsGameOver) return;
+
+            if (fleeCoroutine != null)
+            {
+                StopCoroutine(fleeCoroutine);
+            }
+            fleeCoroutine = StartCoroutine(RunAwayFromHidingSpotRoutine(hidingSpotPosition, 12.0f));
+        }
+
+        public void OnPlayerExitedHiding()
+        {
+            // Player left cabinet; Stalker can gradually resume regular patrol once fleeing duration expires
+        }
+
+        private IEnumerator RunAwayFromHidingSpotRoutine(Vector3 originPos, float duration)
+        {
+            isFleeing = true;
+            currentState = StalkerState.Patrol;
+
+            // Startled/frustrated growl
+            PlayEntityVocal(0.85f, AudioManager.Instance != null ? AudioManager.Instance.monsterGrowlClip : null, false);
+
+            float runSpeed = Mathf.Max(chaseSpeed * 1.25f, 3.7f);
+            float elapsed = 0f;
+
+            // Pick flee destination pointing away from hiding spot
+            Vector3 awayDir = (transform.position - originPos);
+            awayDir.y = 0f;
+            if (awayDir.sqrMagnitude < 0.1f) awayDir = -transform.forward;
+            awayDir.Normalize();
+
+            Vector3 fleeDest = transform.position + awayDir * 35.0f;
+            if (NavMesh.SamplePosition(fleeDest, out NavMeshHit hit, 25f, NavMesh.AllAreas))
+            {
+                fleeDest = hit.position;
+            }
+            patrolDestination = fleeDest;
+
+            if (agent != null && agent.isOnNavMesh)
+            {
+                agent.speed = runSpeed;
+                agent.isStopped = false;
+                agent.SetDestination(fleeDest);
+            }
+
+            while (elapsed < duration)
+            {
+                elapsed += Time.deltaTime;
+
+                if (agent != null && agent.isOnNavMesh)
+                {
+                    agent.speed = runSpeed;
+                    agent.isStopped = false;
+
+                    // If reached destination or close to it, pick next point even further away!
+                    if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance + 1.2f)
+                    {
+                        Vector3 currentAway = (transform.position - originPos);
+                        currentAway.y = 0f;
+                        if (currentAway.sqrMagnitude < 0.1f) currentAway = transform.forward;
+                        currentAway.Normalize();
+
+                        Vector3 nextDest = transform.position + currentAway * 25.0f + Random.insideUnitSphere * 4f;
+                        nextDest.y = transform.position.y;
+                        if (NavMesh.SamplePosition(nextDest, out NavMeshHit nextHit, 20f, NavMesh.AllAreas))
+                        {
+                            patrolDestination = nextHit.position;
+                            agent.SetDestination(nextHit.position);
+                        }
+                    }
+                }
+                else
+                {
+                    FallbackKinematicMovement(patrolDestination, runSpeed);
+                }
+
+                // Force running animation while sprinting away
+                if (animator != null)
+                {
+                    animator.SetFloat("Speed", 2.0f);
+                }
+
+                yield return null;
+            }
+
+            isFleeing = false;
+            fleeCoroutine = null;
             SetState(StalkerState.Patrol);
         }
 
@@ -793,6 +875,12 @@ namespace HorrorEscape.Enemy
 
         private void UpdateSearchState()
         {
+            if (playerController != null && playerController.IsHiding)
+            {
+                OnPlayerEnteredHiding(playerTransform != null ? playerTransform.position : lastKnownPlayerPos);
+                return;
+            }
+
             stateTimer += Time.deltaTime;
             bool reached = false;
 

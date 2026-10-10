@@ -233,10 +233,12 @@ namespace HorrorEscape.Interaction
             isOccupied = true;
             isTransitioning = false;
 
+            NotifyEnemiesPlayerHid();
+
             if (HUDManager.Instance != null)
             {
                 HUDManager.Instance.SetInteractionPrompt("[E] Exit Cabinet", true);
-                HUDManager.Instance.ShowNotification("Hidden inside cabinet. Stay quiet...");
+                HUDManager.Instance.ShowNotification("Hidden inside cabinet. Entity lost you and fled!");
             }
         }
 
@@ -288,9 +290,35 @@ namespace HorrorEscape.Interaction
             isTransitioning = false;
             hiddenPlayer = null;
 
+            NotifyEnemiesPlayerExited();
+
             if (HUDManager.Instance != null)
             {
                 HUDManager.Instance.SetInteractionPrompt(string.Empty, false);
+            }
+        }
+
+        private void NotifyEnemiesPlayerHid()
+        {
+            StalkerAI[] stalkers = FindObjectsByType<StalkerAI>(FindObjectsSortMode.None);
+            foreach (var stalker in stalkers)
+            {
+                if (stalker != null)
+                {
+                    stalker.OnPlayerEnteredHiding(transform.position);
+                }
+            }
+        }
+
+        private void NotifyEnemiesPlayerExited()
+        {
+            StalkerAI[] stalkers = FindObjectsByType<StalkerAI>(FindObjectsSortMode.None);
+            foreach (var stalker in stalkers)
+            {
+                if (stalker != null)
+                {
+                    stalker.OnPlayerExitedHiding();
+                }
             }
         }
 

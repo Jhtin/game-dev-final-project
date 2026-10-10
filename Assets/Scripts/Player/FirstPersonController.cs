@@ -18,6 +18,13 @@ namespace HorrorEscape.Player
         [SerializeField] private float crouchSpeed = 1.8f;
         [SerializeField] private float gravity = 20.0f;
 
+        [Header("Jump Settings")]
+        [SerializeField] private bool enableJump = true;
+        [SerializeField] private float jumpHeight = 1.15f;
+        [SerializeField] private float jumpStaminaCost = 12.0f;
+        [SerializeField] private float jumpNoiseRadius = 8.0f;
+        [SerializeField] private KeyCode jumpKey = KeyCode.Space;
+
         [Header("Look Settings")]
         [SerializeField] private Transform playerCamera;
         [SerializeField] private float mouseSensitivity = 2.0f;
@@ -77,6 +84,8 @@ namespace HorrorEscape.Player
         private float stepCycle;
         private float nextStepTime;
         private Vector3 defaultCameraPos;
+        private bool wasGrounded = true;
+        private bool isJumping = false;
 
         // Public Accessors for HUD & AI
         public float CurrentStamina => currentStamina;
@@ -84,6 +93,8 @@ namespace HorrorEscape.Player
         public bool IsCrouching => isCrouching;
         public bool IsSprinting => isSprinting;
         public bool IsMoving => controller != null && controller.velocity.magnitude > 0.2f;
+        public bool IsGrounded => controller != null && controller.isGrounded;
+        public bool IsJumping => isJumping;
 
         // Hiding State
         private bool isHiding;
@@ -334,11 +345,53 @@ namespace HorrorEscape.Player
 
             Vector3 worldMove = (transform.right * inputDir.x + transform.forward * inputDir.z) * targetSpeed;
 
-            if (controller.isGrounded)
+            bool isGrounded = controller.isGrounded;
+
+            // Landing detection & audio
+            if (!wasGrounded && isGrounded && moveDirection.y <= 0f)
             {
+                OnLanded();
+            }
+
+            if (isGrounded)
+            {
+                isJumping = false;
                 moveDirection.x = worldMove.x;
                 moveDirection.z = worldMove.z;
-                moveDirection.y = -1.0f; // Keep grounded firmly
+
+                bool wantsToJump = enableJump && CheckJumpInput();
+                if (wantsToJump)
+                {
+                    // If crouching, uncrouch first
+                    if (isCrouching)
+                    {
+                        isCrouching = false;
+                    }
+
+                    if (currentStamina >= jumpStaminaCost * 0.4f)
+                    {
+                        currentStamina = Mathf.Max(0f, currentStamina - jumpStaminaCost);
+                        staminaCooldownTimer = Mathf.Max(staminaCooldownTimer, 0.35f);
+                        moveDirection.y = Mathf.Sqrt(2f * jumpHeight * gravity);
+                        isJumping = true;
+
+                        PlayJumpSound();
+                        EmitNoise(transform.position, jumpNoiseRadius);
+
+                        if (characterAnimator != null && HasAnimatorParameter("Jump"))
+                        {
+                            characterAnimator.SetTrigger("Jump");
+                        }
+                    }
+                    else
+                    {
+                        moveDirection.y = -1.0f;
+                    }
+                }
+                else
+                {
+                    moveDirection.y = -1.0f; // Keep grounded firmly
+                }
             }
             else
             {
@@ -347,10 +400,12 @@ namespace HorrorEscape.Player
                 moveDirection.y -= gravity * Time.deltaTime;
             }
 
+            wasGrounded = isGrounded;
+
             controller.Move(moveDirection * Time.deltaTime);
 
-            // Noise emission for AI
-            if (IsMoving)
+            // Noise emission for AI while walking/sprinting on ground
+            if (IsMoving && isGrounded)
             {
                 float noiseRadius = isSprinting ? sprintNoiseRadius : (isCrouching ? 0f : walkNoiseRadius);
                 if (noiseRadius > 0f)
@@ -519,6 +574,47 @@ namespace HorrorEscape.Player
             }
         }
 
+        private bool CheckJumpInput()
+        {
+            if (Input.GetKeyDown(jumpKey)) return true;
+            try
+            {
+                if (Input.GetButtonDown("Jump")) return true;
+            }
+            catch (System.Exception)
+            {
+                // Fallback to jumpKey
+            }
+            return false;
+        }
+
+        private void PlayJumpSound()
+        {
+            if (AudioManager.Instance != null && AudioManager.Instance.footstepClip != null)
+            {
+                AudioManager.Instance.Play2D(AudioManager.Instance.footstepClip, 0.45f, 1.25f);
+            }
+        }
+
+        private void OnLanded()
+        {
+            if (AudioManager.Instance != null && AudioManager.Instance.footstepClip != null)
+            {
+                AudioManager.Instance.Play2D(AudioManager.Instance.footstepClip, 0.6f, 0.85f);
+            }
+            EmitNoise(transform.position, jumpNoiseRadius * 1.2f);
+        }
+
+        private bool HasAnimatorParameter(string paramName)
+        {
+            if (characterAnimator == null) return false;
+            foreach (var p in characterAnimator.parameters)
+            {
+                if (p.name == paramName) return true;
+            }
+            return false;
+        }
+
         private void UpdateCharacterAnimations()
         {
             if (characterAnimator == null) return;
@@ -538,6 +634,10 @@ namespace HorrorEscape.Player
             characterAnimator.SetBool("IsSprinting", isSprinting);
             characterAnimator.SetBool("IsCrouching", isCrouching);
             characterAnimator.SetBool("IsGrounded", controller.isGrounded);
+            if (HasAnimatorParameter("IsJumping"))
+            {
+                characterAnimator.SetBool("IsJumping", isJumping);
+            }
         }
 
         public Animator CharacterAnimator => characterAnimator;
