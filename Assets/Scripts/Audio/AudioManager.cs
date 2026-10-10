@@ -25,6 +25,15 @@ namespace HorrorEscape.Audio
         public AudioClip doorOpenClip;
         public AudioClip doorCloseClip;
         public AudioClip doorUnlockClip;
+        public AudioClip doorLockedClip;
+        public AudioClip doorCreakOpenClip;
+        public AudioClip doorLatchClip;
+        public AudioClip cabinetOpenClip;
+        public AudioClip cabinetCloseClip;
+        public AudioClip lockerOpenClip;
+        public AudioClip lockerCloseClip;
+        public AudioClip gateOpenClip;
+        public AudioClip gateClangClip;
         public AudioClip itemPickupClip;
         public AudioClip noteOpenClip;
         public AudioClip monsterSpottedClip;

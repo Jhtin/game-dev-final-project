@@ -99,9 +99,10 @@ namespace HorrorEscape.Interaction
                 {
                     HUDManager.Instance.ShowNotification("Exit is locked! Restore facility power in the Maintenance Room first.");
                 }
-                if (AudioManager.Instance != null && AudioManager.Instance.doorCloseClip != null)
+                if (AudioManager.Instance != null)
                 {
-                    AudioManager.Instance.PlayAtPosition(AudioManager.Instance.doorCloseClip, transform.position, 0.8f);
+                    AudioClip lockedSound = AudioManager.Instance.doorLockedClip ?? AudioManager.Instance.doorCloseClip;
+                    if (lockedSound != null) AudioManager.Instance.PlayAtPosition(lockedSound, transform.position, 0.85f);
                 }
             }
         }
@@ -111,9 +112,17 @@ namespace HorrorEscape.Interaction
             isOpen = true;
 
             // Play door unlock and swing open audio
-            if (AudioManager.Instance != null && AudioManager.Instance.doorOpenClip != null)
+            if (AudioManager.Instance != null)
             {
-                AudioManager.Instance.PlayAtPosition(AudioManager.Instance.doorOpenClip, transform.position, 1.0f);
+                if (AudioManager.Instance.doorUnlockClip != null)
+                {
+                    AudioManager.Instance.PlayAtPosition(AudioManager.Instance.doorUnlockClip, transform.position, 0.9f);
+                }
+                AudioClip swingClip = AudioManager.Instance.gateOpenClip ?? AudioManager.Instance.gateClangClip ?? AudioManager.Instance.doorOpenClip;
+                if (swingClip != null)
+                {
+                    AudioManager.Instance.PlayAtPosition(swingClip, transform.position, 1.0f);
+                }
             }
 
             // Animate door open

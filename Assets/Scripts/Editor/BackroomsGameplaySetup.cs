@@ -226,6 +226,31 @@ namespace HorrorEscape.Editor
                 am = go.AddComponent<AudioManager>();
             }
 
+            SerializedObject amSo = new SerializedObject(am);
+            const string DoorPackDir = "Assets/Door, Cabinet and Locker Sound Pack (Free)/FREE VERSION";
+            if (Directory.Exists(DoorPackDir))
+            {
+                amSo.FindProperty("doorOpenClip").objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>($"{DoorPackDir}/Open Door 13.wav");
+                amSo.FindProperty("doorCloseClip").objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>($"{DoorPackDir}/Close Door 16.wav");
+                amSo.FindProperty("doorUnlockClip").objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>($"{DoorPackDir}/Unlock 1.wav");
+                amSo.FindProperty("doorLockedClip").objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>($"{DoorPackDir}/Locked Door Turn Doorknob 3.wav");
+                amSo.FindProperty("doorCreakOpenClip").objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>($"{DoorPackDir}/Open Push Door With Long Creak 1.wav");
+                amSo.FindProperty("doorLatchClip").objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>($"{DoorPackDir}/Close Latch 1.wav");
+                amSo.FindProperty("cabinetOpenClip").objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>($"{DoorPackDir}/Open Push Door With Long Creak 1.wav");
+                amSo.FindProperty("cabinetCloseClip").objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>($"{DoorPackDir}/Close Cabinet Cupboard 1.wav");
+                amSo.FindProperty("lockerOpenClip").objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>($"{DoorPackDir}/Open Close Metal Door Locker Cabinet Box 3.wav");
+                amSo.FindProperty("lockerCloseClip").objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>($"{DoorPackDir}/Close Metal Door Locker Cabinet Box 1.wav");
+                amSo.FindProperty("gateOpenClip").objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>($"{DoorPackDir}/Open Push Door With Long Creak 1.wav");
+                amSo.FindProperty("gateClangClip").objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>($"{DoorPackDir}/Swinging Metal Door Clang Shut 1.wav");
+
+                AudioClip pRestore = AssetDatabase.LoadAssetAtPath<AudioClip>($"{DoorPackDir}/Call Elevator Button Lift Big Large Mechanical Noise 1.wav");
+                if (pRestore != null)
+                {
+                    amSo.FindProperty("powerRestoreClip").objectReferenceValue = pRestore;
+                }
+            }
+            amSo.ApplyModifiedProperties();
+
             hud = UnityEngine.Object.FindFirstObjectByType<HUDManager>();
             if (hud == null)
             {

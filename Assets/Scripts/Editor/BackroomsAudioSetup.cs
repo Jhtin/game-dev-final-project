@@ -146,6 +146,45 @@ namespace HorrorEscape.Editor
                 }
             }
 
+            // 4. Load and Assign Door, Cabinet and Locker Sound Pack (Free)
+            const string DoorPackDir = "Assets/Door, Cabinet and Locker Sound Pack (Free)/FREE VERSION";
+            if (Directory.Exists(DoorPackDir))
+            {
+                AudioClip doorOpen = LoadAudioClip($"{DoorPackDir}/Open Door 13.wav");
+                AudioClip doorClose = LoadAudioClip($"{DoorPackDir}/Close Door 16.wav");
+                AudioClip doorUnlock = LoadAudioClip($"{DoorPackDir}/Unlock 1.wav");
+                AudioClip doorLocked = LoadAudioClip($"{DoorPackDir}/Locked Door Turn Doorknob 3.wav");
+                AudioClip doorCreak = LoadAudioClip($"{DoorPackDir}/Open Push Door With Long Creak 1.wav");
+                AudioClip doorLatch = LoadAudioClip($"{DoorPackDir}/Close Latch 1.wav");
+                AudioClip cabOpen = LoadAudioClip($"{DoorPackDir}/Open Push Door With Long Creak 1.wav");
+                AudioClip cabClose = LoadAudioClip($"{DoorPackDir}/Close Cabinet Cupboard 1.wav");
+                AudioClip lockerOpen = LoadAudioClip($"{DoorPackDir}/Open Close Metal Door Locker Cabinet Box 3.wav");
+                AudioClip lockerClose = LoadAudioClip($"{DoorPackDir}/Close Metal Door Locker Cabinet Box 1.wav");
+                AudioClip gateClang = LoadAudioClip($"{DoorPackDir}/Swinging Metal Door Clang Shut 1.wav");
+                AudioClip gateOpen = LoadAudioClip($"{DoorPackDir}/Open Push Door With Long Creak 1.wav");
+                AudioClip powerRestore = LoadAudioClip($"{DoorPackDir}/Call Elevator Button Lift Big Large Mechanical Noise 1.wav");
+
+                audioSo.FindProperty("doorOpenClip").objectReferenceValue = doorOpen;
+                audioSo.FindProperty("doorCloseClip").objectReferenceValue = doorClose;
+                audioSo.FindProperty("doorUnlockClip").objectReferenceValue = doorUnlock;
+                audioSo.FindProperty("doorLockedClip").objectReferenceValue = doorLocked;
+                audioSo.FindProperty("doorCreakOpenClip").objectReferenceValue = doorCreak;
+                audioSo.FindProperty("doorLatchClip").objectReferenceValue = doorLatch;
+                audioSo.FindProperty("cabinetOpenClip").objectReferenceValue = cabOpen;
+                audioSo.FindProperty("cabinetCloseClip").objectReferenceValue = cabClose;
+                audioSo.FindProperty("lockerOpenClip").objectReferenceValue = lockerOpen;
+                audioSo.FindProperty("lockerCloseClip").objectReferenceValue = lockerClose;
+                audioSo.FindProperty("gateOpenClip").objectReferenceValue = gateOpen;
+                audioSo.FindProperty("gateClangClip").objectReferenceValue = gateClang;
+
+                if (powerRestore != null)
+                {
+                    audioSo.FindProperty("powerRestoreClip").objectReferenceValue = powerRestore;
+                }
+
+                Debug.Log("[BackroomsAudioSetup] Assigned Door, Cabinet & Locker Sound Pack clips to AudioManager.");
+            }
+
             audioSo.ApplyModifiedProperties();
 
             // 4. Attach EntityProximityAudio component to StalkerEnemy in scene

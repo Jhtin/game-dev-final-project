@@ -30,6 +30,7 @@ namespace HorrorEscape.Interaction
         [Header("Audio")]
         [SerializeField] private AudioClip doorOpenClip;
         [SerializeField] private AudioClip doorCloseClip;
+        [SerializeField] private AudioClip doorLatchClip;
         [SerializeField] private float audioVolume = 0.8f;
         [SerializeField] private float audioRange = 12.0f;
 
@@ -48,7 +49,7 @@ namespace HorrorEscape.Interaction
 
         public bool IsOccupied => isOccupied;
 
-        public void Configure(Transform hinge, Transform interior, Transform exit, float angle = -95f)
+        public void Configure(Transform hinge, Transform interior, Transform exit, float angle = -95f, AudioClip open = null, AudioClip close = null, AudioClip latch = null)
         {
             doorHinge = hinge;
             interiorAnchor = interior;
@@ -57,6 +58,9 @@ namespace HorrorEscape.Interaction
             closedRotation = Quaternion.identity;
             openRotation = Quaternion.Euler(0f, openAngle, 0f);
             targetDoorRotation = closedRotation;
+            if (open != null) doorOpenClip = open;
+            if (close != null) doorCloseClip = close;
+            if (latch != null) doorLatchClip = latch;
             if (doorHinge != null)
             {
                 doorHinge.localRotation = closedRotation;
@@ -201,7 +205,7 @@ namespace HorrorEscape.Interaction
 
             // 1. Swing door open
             targetDoorRotation = openRotation;
-            PlayDoorSound(doorOpenClip != null ? doorOpenClip : (AudioManager.Instance != null ? AudioManager.Instance.doorOpenClip : null));
+            PlayDoorSound(GetOpenClip());
 
             // 2. Smoothly transition player into cabinet
             Vector3 startPos = hiddenPlayer.transform.position;
@@ -230,7 +234,7 @@ namespace HorrorEscape.Interaction
 
             // 4. Swing door shut on its own so the player is completely hidden inside
             targetDoorRotation = closedRotation;
-            PlayDoorSound(doorCloseClip != null ? doorCloseClip : (AudioManager.Instance != null ? AudioManager.Instance.doorCloseClip : null));
+            PlayDoorSound(GetCloseClip());
 
             // Wait briefly for the door to visibly swing shut and latch
             float shutTimer = 0f;
@@ -240,6 +244,7 @@ namespace HorrorEscape.Interaction
                 yield return null;
             }
             if (doorHinge != null) doorHinge.localRotation = closedRotation;
+            PlayDoorSound(GetLatchClip());
 
             isOccupied = true;
             isTransitioning = false;
@@ -259,7 +264,7 @@ namespace HorrorEscape.Interaction
 
             // 1. Swing door open
             targetDoorRotation = openRotation;
-            PlayDoorSound(doorOpenClip != null ? doorOpenClip : (AudioManager.Instance != null ? AudioManager.Instance.doorOpenClip : null));
+            PlayDoorSound(GetOpenClip());
 
             yield return new WaitForSeconds(0.2f);
 
@@ -295,7 +300,7 @@ namespace HorrorEscape.Interaction
 
             // 4. Swing door shut behind player
             targetDoorRotation = closedRotation;
-            PlayDoorSound(doorCloseClip != null ? doorCloseClip : (AudioManager.Instance != null ? AudioManager.Instance.doorCloseClip : null));
+            PlayDoorSound(GetCloseClip());
 
             float exitShutTimer = 0f;
             while (exitShutTimer < 0.35f)
@@ -304,6 +309,7 @@ namespace HorrorEscape.Interaction
                 yield return null;
             }
             if (doorHinge != null) doorHinge.localRotation = closedRotation;
+            PlayDoorSound(GetLatchClip());
 
             isOccupied = false;
             isTransitioning = false;
@@ -339,6 +345,36 @@ namespace HorrorEscape.Interaction
                     stalker.OnPlayerExitedHiding();
                 }
             }
+        }
+
+        private AudioClip GetOpenClip()
+        {
+            if (doorOpenClip != null) return doorOpenClip;
+            if (AudioManager.Instance != null)
+            {
+                return AudioManager.Instance.cabinetOpenClip ?? AudioManager.Instance.doorCreakOpenClip ?? AudioManager.Instance.doorOpenClip;
+            }
+            return null;
+        }
+
+        private AudioClip GetCloseClip()
+        {
+            if (doorCloseClip != null) return doorCloseClip;
+            if (AudioManager.Instance != null)
+            {
+                return AudioManager.Instance.cabinetCloseClip ?? AudioManager.Instance.doorCloseClip;
+            }
+            return null;
+        }
+
+        private AudioClip GetLatchClip()
+        {
+            if (doorLatchClip != null) return doorLatchClip;
+            if (AudioManager.Instance != null)
+            {
+                return AudioManager.Instance.doorLatchClip;
+            }
+            return null;
         }
 
         private void PlayDoorSound(AudioClip clip)

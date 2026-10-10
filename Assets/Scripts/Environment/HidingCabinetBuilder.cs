@@ -116,7 +116,14 @@ namespace HorrorEscape.Environment
 
             // 5. HidingSpot Component
             HidingSpot spot = cabinet.AddComponent<HidingSpot>();
+#if UNITY_EDITOR
+            AudioClip openClip = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Door, Cabinet and Locker Sound Pack (Free)/FREE VERSION/Open Push Door With Long Creak 1.wav");
+            AudioClip closeClip = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Door, Cabinet and Locker Sound Pack (Free)/FREE VERSION/Close Cabinet Cupboard 1.wav");
+            AudioClip latchClip = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Door, Cabinet and Locker Sound Pack (Free)/FREE VERSION/Close Latch 1.wav");
+            spot.Configure(hingeGO.transform, interiorGO.transform, exitGO.transform, -95.0f, openClip, closeClip, latchClip);
+#else
             spot.Configure(hingeGO.transform, interiorGO.transform, exitGO.transform, -95.0f);
+#endif
 
 #if UNITY_EDITOR
             // Mark static frame geometry for lightmapping

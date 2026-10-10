@@ -86,9 +86,13 @@ namespace HorrorEscape.Interaction
             else
             {
                 // Play locked rattle
-                if (AudioManager.Instance != null && AudioManager.Instance.doorCloseClip != null)
+                if (AudioManager.Instance != null)
                 {
-                    AudioManager.Instance.PlayAtPosition(AudioManager.Instance.doorCloseClip, transform.position, 0.6f, 15f);
+                    AudioClip rattle = AudioManager.Instance.doorLockedClip ?? AudioManager.Instance.doorCloseClip;
+                    if (rattle != null)
+                    {
+                        AudioManager.Instance.PlayAtPosition(rattle, transform.position, 0.7f, 15f);
+                    }
                 }
 
                 if (HUDManager.Instance != null)
