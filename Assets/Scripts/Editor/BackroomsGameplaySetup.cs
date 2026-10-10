@@ -509,7 +509,17 @@ namespace HorrorEscape.Editor
             Vector3 exitPos = CellWorldPos(gen.ExitCell, cs, 0f);
             emergencyExit = CreateEmergencyExitGate(propsRoot, exitPos, wallMat, ceilingMat);
 
-            // 7. Instantiate Darkness Zone Volumes for Complete and Partial Blackout Sectors
+            // 7. Tactical Hiding Cabinets near Objective Rooms
+            Vector3 earlyCabPos = CellWorldPos(earlyRoom.Center, cs, 0f) + new Vector3(-cs * 0.4f, 0f, 0f);
+            HidingCabinetBuilder.BuildCabinet(earlyCabPos, Quaternion.Euler(0f, 90f, 0f), propsRoot.transform);
+
+            Vector3 keycardCabPos = CellWorldPos(keycardRoom.Center, cs, 0f) + new Vector3(cs * 0.4f, 0f, 0f);
+            HidingCabinetBuilder.BuildCabinet(keycardCabPos, Quaternion.Euler(0f, -90f, 0f), propsRoot.transform);
+
+            Vector3 maintCabPos = CellWorldPos(maintenanceRoom.Center, cs, 0f) + new Vector3(-cs * 0.4f, 0f, 0f);
+            HidingCabinetBuilder.BuildCabinet(maintCabPos, Quaternion.Euler(0f, 90f, 0f), propsRoot.transform);
+
+            // 8. Instantiate Darkness Zone Volumes for Complete and Partial Blackout Sectors
             DestroyAllNamed("Darkness_Zones");
             GameObject darknessRoot = new GameObject("Darkness_Zones");
 

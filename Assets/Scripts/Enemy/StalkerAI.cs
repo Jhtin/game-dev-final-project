@@ -268,33 +268,56 @@ namespace HorrorEscape.Enemy
         {
             if (isDormant || isFleeing || currentState == StalkerState.Attack || currentState == StalkerState.Stunned) return;
 
+            // 1. If player is hiding inside a cabinet / hiding spot, entity CANNOT detect them!
+            if (playerController != null && playerController.IsHiding)
+            {
+                if (currentState == StalkerState.Chase)
+                {
+                    lostSightTimer -= Time.deltaTime;
+                    if (lostSightTimer <= 0f || Vector3.Distance(transform.position, lastKnownPlayerPos) < 2.0f)
+                    {
+                        SetState(StalkerState.Search);
+                    }
+                }
+                return;
+            }
+
             Vector3 eyePos = transform.position + Vector3.up * eyeHeight;
             Vector3 targetPos = playerTransform.position + Vector3.up * (playerController.IsCrouching ? 0.4f : 1.2f);
             Vector3 dirToPlayer = targetPos - eyePos;
             float distToPlayer = dirToPlayer.magnitude;
 
-            // Flashlight detection: entity immediately spots the bright beam down the corridor!
+            // Flashlight detection: entity immediately spots the bright beam down the corridor, but not through walls/doors!
             if (playerFlashlight != null && playerFlashlight.IsOn && distToPlayer <= flashlightViewDistance)
             {
-                lastKnownPlayerPos = playerTransform.position;
-                lostSightTimer = lostSightGraceDuration;
-                if (currentState != StalkerState.Chase)
+                bool beamBlocked = Physics.Raycast(eyePos, dirToPlayer.normalized, distToPlayer - 0.2f, sightObstacles, QueryTriggerInteraction.Ignore);
+                if (!beamBlocked)
                 {
-                    OnSpotPlayer();
-                    return;
+                    lastKnownPlayerPos = playerTransform.position;
+                    lostSightTimer = lostSightGraceDuration;
+                    if (currentState != StalkerState.Chase)
+                    {
+                        OnSpotPlayer();
+                        return;
+                    }
                 }
             }
 
             // Proximity auditory / scent awareness: entity senses player around corridor corners (Level 1 Difficulty)
+            // But if there's a wall or closed door between them, crouching/walking quietly prevents detection!
             float senseRadius = playerController != null && playerController.IsCrouching ? 2.0f : 5.5f;
             if (distToPlayer <= senseRadius)
             {
-                lastKnownPlayerPos = playerTransform.position;
-                lostSightTimer = lostSightGraceDuration;
-                if (currentState != StalkerState.Chase)
+                bool wallBetween = Physics.Raycast(eyePos, dirToPlayer.normalized, distToPlayer - 0.2f, sightObstacles, QueryTriggerInteraction.Ignore);
+                if (!wallBetween || (playerController != null && playerController.IsSprinting))
                 {
-                    OnSpotPlayer();
-                    return;
+                    lastKnownPlayerPos = playerTransform.position;
+                    lostSightTimer = lostSightGraceDuration;
+                    if (currentState != StalkerState.Chase)
+                    {
+                        OnSpotPlayer();
+                        return;
+                    }
                 }
             }
 
@@ -490,6 +513,35 @@ namespace HorrorEscape.Enemy
 
         private void MoveToNextPatrolPoint()
         {
+            // If player is hiding, entity actively patrols away from the hiding spot!
+            if (playerController != null && playerController.IsHiding)
+            {
+                if (waypoints.Count > 0)
+                {
+                    currentWaypointIndex = (currentWaypointIndex + 1) % waypoints.Count;
+                    Transform wp = waypoints[currentWaypointIndex];
+                    if (wp != null)
+                    {
+                        patrolDestination = wp.position;
+                        if (agent != null && agent.isOnNavMesh) agent.SetDestination(wp.position);
+                        return;
+                    }
+                }
+
+                if (playerTransform != null)
+                {
+                    Vector3 awayDir = (transform.position - playerTransform.position).normalized;
+                    Vector3 awayTarget = transform.position + awayDir * Random.Range(15f, 25f) + Random.insideUnitSphere * 4f;
+                    awayTarget.y = transform.position.y;
+                    if (agent != null && agent.isOnNavMesh && NavMesh.SamplePosition(awayTarget, out NavMeshHit awayHit, 16f, NavMesh.AllAreas))
+                    {
+                        patrolDestination = awayHit.position;
+                        agent.SetDestination(awayHit.position);
+                        return;
+                    }
+                }
+            }
+
             // Actively hunt in the player's direction through the Backrooms maze!
             if (playerTransform != null)
             {
@@ -578,6 +630,27 @@ namespace HorrorEscape.Enemy
         private void UpdateChaseState()
         {
             if (playerTransform == null) return;
+
+            // If player just hid, stop chasing them directly; run to lastKnownPlayerPos then search
+            if (playerController != null && playerController.IsHiding)
+            {
+                if (agent != null && agent.isOnNavMesh)
+                {
+                    agent.speed = chaseSpeed;
+                    agent.isStopped = false;
+                    agent.SetDestination(lastKnownPlayerPos);
+                }
+                else
+                {
+                    FallbackKinematicMovement(lastKnownPlayerPos, chaseSpeed);
+                }
+
+                if (Vector3.Distance(transform.position, lastKnownPlayerPos) <= 1.8f)
+                {
+                    SetState(StalkerState.Search);
+                }
+                return;
+            }
 
             if (agent != null && agent.isOnNavMesh)
             {

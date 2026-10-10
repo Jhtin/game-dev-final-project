@@ -85,6 +85,38 @@ namespace HorrorEscape.Player
         public bool IsSprinting => isSprinting;
         public bool IsMoving => controller != null && controller.velocity.magnitude > 0.2f;
 
+        // Hiding State
+        private bool isHiding;
+        private float hidingBaseYaw;
+        private float hidingPeekYaw;
+        private float hidingPeekPitch;
+        private const float MaxHidingYaw = 65.0f;
+        private const float MaxHidingPitch = 30.0f;
+
+        public bool IsHiding => isHiding;
+
+        public void SetHiding(bool hiding, float facingYaw = 0f)
+        {
+            isHiding = hiding;
+            if (controller != null)
+            {
+                controller.enabled = !hiding;
+            }
+
+            if (hiding)
+            {
+                hidingBaseYaw = facingYaw;
+                hidingPeekYaw = 0f;
+                hidingPeekPitch = 0f;
+                pitch = 0f;
+                transform.rotation = Quaternion.Euler(0f, facingYaw, 0f);
+                if (playerCamera != null)
+                {
+                    playerCamera.localRotation = Quaternion.identity;
+                }
+            }
+        }
+
         public bool IsInputBlocked
         {
             get
@@ -155,6 +187,11 @@ namespace HorrorEscape.Player
             }
 
             HandleMouseLook();
+            if (isHiding)
+            {
+                UpdateCharacterAnimations();
+                return;
+            }
             HandleCrouch();
             HandlePerspectiveToggle();
             HandleStamina();
@@ -251,6 +288,19 @@ namespace HorrorEscape.Player
 
             float mouseX = Input.GetAxis("Mouse X") * mouseSensitivity;
             float mouseY = Input.GetAxis("Mouse Y") * mouseSensitivity;
+
+            if (isHiding)
+            {
+                hidingPeekYaw = Mathf.Clamp(hidingPeekYaw + mouseX, -MaxHidingYaw, MaxHidingYaw);
+                hidingPeekPitch = Mathf.Clamp(hidingPeekPitch - mouseY, -MaxHidingPitch, MaxHidingPitch);
+
+                transform.rotation = Quaternion.Euler(0f, hidingBaseYaw + hidingPeekYaw, 0f);
+                if (playerCamera != null)
+                {
+                    playerCamera.localRotation = Quaternion.Euler(hidingPeekPitch, 0f, 0f);
+                }
+                return;
+            }
 
             // Yaw rotates player body
             transform.Rotate(Vector3.up * mouseX);

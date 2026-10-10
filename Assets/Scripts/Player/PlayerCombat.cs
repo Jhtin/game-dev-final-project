@@ -111,7 +111,8 @@ namespace HorrorEscape.Player
             bool isUIBlocking = (HUDManager.Instance != null && (HUDManager.Instance.IsInventoryOpen || HUDManager.Instance.IsReadingNote || HUDManager.Instance.IsPaused)) ||
                                 (GameManager.Instance != null && (GameManager.Instance.IsGameOver || GameManager.Instance.IsVictory));
 
-            if (isUIBlocking)
+            FirstPersonController fpc = GetComponent<FirstPersonController>();
+            if (isUIBlocking || (fpc != null && fpc.IsHiding))
             {
                 return;
             }

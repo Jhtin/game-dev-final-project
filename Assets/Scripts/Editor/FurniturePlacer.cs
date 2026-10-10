@@ -277,11 +277,12 @@ namespace HorrorEscape.Editor
                 }
             }
 
-            // Closet along East wall
+            // Interactive Hiding Cabinet along East wall
             Vector3 closetPos = new Vector3((room.x + room.width) * cs - 0.75f, 0f, (room.z + room.length * 0.5f) * cs);
             if (IsPositionClear(closetPos, exclusions, placed, 1.5f))
             {
-                SpawnPiece(PickRandom(Closets, rng), closetPos, Quaternion.Euler(0f, -90f, 0f), parent, placed);
+                HidingCabinetBuilder.BuildCabinet(closetPos, Quaternion.Euler(0f, -90f, 0f), parent);
+                placed.Add(closetPos);
                 placedInRoom++;
             }
 
@@ -303,11 +304,12 @@ namespace HorrorEscape.Editor
             List<Vector3> exclusions, List<Vector3> placed, System.Random rng)
         {
             int placedInRoom = 0;
-            // Line of Closets against West wall
+            // Interactive Hiding Cabinet against West wall
             Vector3 closet1Pos = new Vector3(room.x * cs + 0.75f, 0f, (room.z + 0.8f) * cs);
             if (IsPositionClear(closet1Pos, exclusions, placed, 1.4f))
             {
-                SpawnPiece(PickRandom(Closets, rng), closet1Pos, Quaternion.Euler(0f, 90f, 0f), parent, placed);
+                HidingCabinetBuilder.BuildCabinet(closet1Pos, Quaternion.Euler(0f, 90f, 0f), parent);
+                placed.Add(closet1Pos);
                 placedInRoom++;
             }
 
@@ -457,8 +459,9 @@ namespace HorrorEscape.Editor
                         }
                         else if (roll < 0.70)
                         {
-                            // Closet at dead end
-                            SpawnPiece(PickRandom(Closets, rng), cellCenter, rot, parent, placed);
+                            // Interactive Hiding Cabinet at dead end
+                            HidingCabinetBuilder.BuildCabinet(cellCenter, rot, parent);
+                            placed.Add(cellCenter);
                             placedCount++;
                         }
                         else

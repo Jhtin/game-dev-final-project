@@ -232,10 +232,12 @@ namespace HorrorEscape.Environment
                 }
             }
 
+            // Interactive Hiding Cabinet in Office
             Vector3 closetPos = new Vector3((room.x + room.width) * cs - 0.75f, 0f, (room.z + room.length * 0.5f) * cs);
             if (IsClear(closetPos, exclusions, placed, 1.5f))
             {
-                Spawn(Pick(closetPrefabs, rng), closetPos, Quaternion.Euler(0f, -90f, 0f), parent, placed);
+                HidingCabinetBuilder.BuildCabinet(closetPos, Quaternion.Euler(0f, -90f, 0f), parent);
+                placed.Add(closetPos);
                 placedCount++;
             }
             return placedCount;
@@ -245,10 +247,12 @@ namespace HorrorEscape.Environment
             List<Vector3> exclusions, List<Vector3> placed, System.Random rng)
         {
             int placedCount = 0;
+            // Interactive Hiding Cabinet in Storage Room
             Vector3 closet1 = new Vector3(room.x * cs + 0.75f, 0f, (room.z + 0.8f) * cs);
             if (IsClear(closet1, exclusions, placed, 1.4f))
             {
-                Spawn(Pick(closetPrefabs, rng), closet1, Quaternion.Euler(0f, 90f, 0f), parent, placed);
+                HidingCabinetBuilder.BuildCabinet(closet1, Quaternion.Euler(0f, 90f, 0f), parent);
+                placed.Add(closet1);
                 placedCount++;
             }
 
@@ -321,9 +325,17 @@ namespace HorrorEscape.Environment
 
                     if (walkableNeighbors == 1 && IsClear(center, exclusions, placed, 1.4f))
                     {
-                        GameObject prefab = (rng.NextDouble() < 0.5) ? Pick(armchairPrefabs, rng) : Pick(closetPrefabs, rng);
-                        Spawn(prefab, center, rot, parent, placed);
-                        count++;
+                        if (rng.NextDouble() < 0.5)
+                        {
+                            HidingCabinetBuilder.BuildCabinet(center, rot, parent);
+                            placed.Add(center);
+                            count++;
+                        }
+                        else
+                        {
+                            Spawn(Pick(armchairPrefabs, rng), center, rot, parent, placed);
+                            count++;
+                        }
                     }
                 }
             }
